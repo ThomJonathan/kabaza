@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "901554270219",
+    "project_id": "jayteekabanza",
+    "storage_bucket": "jayteekabanza.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:901554270219:android:159a368194fc045a60570e",
+        "android_client_info": {
+          "package_name": "com.example.kabaza"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAwBZT0LlveffJVjzRXoRGPOfKsrrm8Y-o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

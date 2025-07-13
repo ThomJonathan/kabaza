@@ -4,10 +4,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kabanza/utils/service.dart';
 import 'package:kabanza/utils/observer.dart';
 import 'package:kabanza/utils/LocationUpdater.dart';
+import '../routes.dart';
 import 'backend/homebackend.dart';
 import 'homeUI.dart';
 import 'BottomNavBar.dart';
-import 'package:kabanza/messages.dart';
+
 
 class RiderHomePage extends StatefulWidget {
   const RiderHomePage({Key? key}) : super(key: key);
@@ -76,7 +77,7 @@ class _RiderHomePageState extends State<RiderHomePage> {
 
   // Navigation methods
   void _requestRide() {
-    Navigator.pushNamed(context, '/book-ride');
+    Navigator.pushNamed(context, AppRoutes.bookRide);
   }
 
   void _requestDelivery() {

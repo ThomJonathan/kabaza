@@ -15,7 +15,7 @@ class DriverService with WidgetsBindingObserver {
   final Connectivity _connectivity = Connectivity();
 
   Timer? _connectionTimer;
-  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   bool _hasInternetConnection = true;
   DateTime? _lastConnectionLoss;
 
@@ -56,8 +56,8 @@ class DriverService with WidgetsBindingObserver {
 
   void _setupConnectivityMonitoring() {
     _connectivitySubscription = _connectivity.onConnectivityChanged.listen(
-          (ConnectivityResult result) {
-        _handleConnectivityChange(result);
+          (List<ConnectivityResult> results) {
+        _handleConnectivityChange(results);
       },
     );
   }
@@ -74,8 +74,9 @@ class DriverService with WidgetsBindingObserver {
     _handleAppLifecycleChange(state);
   }
 
-  void _handleConnectivityChange(ConnectivityResult result) {
-    final bool hasConnection = result != ConnectivityResult.none;
+  void _handleConnectivityChange(List<ConnectivityResult> results) {
+    // Check if any of the results indicate a connection
+    final bool hasConnection = results.any((result) => result != ConnectivityResult.none);
 
     if (hasConnection != _hasInternetConnection) {
       _hasInternetConnection = hasConnection;

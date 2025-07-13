@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kabanza/routes.dart';
-
+import 'package:kabanza/AuthManager.dart';
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
 
@@ -55,6 +55,13 @@ class _LoginScreenState extends State<LoginScreen> {
           .select()
           .eq('id', response.user!.id)
           .single();
+
+      // Store user data in AppAuthManager
+      AppAuthManager.setUserData(userData);
+
+      // Optional: Log for debugging
+      print('User logged in: ${AppAuthManager.getCurrentUserId()}');
+      print('User role: ${AppAuthManager.getUserRole()}');
 
       // if (userData['is_active'] == false) {
       //   if (!mounted) return;

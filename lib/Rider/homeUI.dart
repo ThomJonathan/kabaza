@@ -201,7 +201,7 @@ class RiderHomeUI {
                   title: 'Book Ride',
                   subtitle: 'Get a ride now',
                   color: Theme.of(context).primaryColor,
-                  onTap: onRequestRide,
+                  onTap: onRequestRide,  // This will use the updated _requestRide method
                 ),
               ),
               const SizedBox(width: 12),

@@ -9,12 +9,11 @@ version: 1.0.0+1
 environment:
   sdk: '>=3.0.0 <3.8.0'
 
-
 dependencies:
   flutter:
     sdk: flutter
   google_maps_flutter: ^2.12.1
-  connectivity_plus: ^4.0.0
+  connectivity_plus: ^6.0.0
   location: ^6.0.2
   flutter_map: ^6.1.0
   latlong2: ^0.9.0
@@ -24,22 +23,20 @@ dependencies:
   uuid: ^4.3.3
   supabase_flutter: ^2.9.0
   mapbox_maps_flutter: ^2.8.0
-
+  maps_toolkit: ^3.0.0
+  http: ^1.4.0
+  google_polyline_algorithm: ^3.1.0
+  # The following adds the Cupertino Icons font to your application.
+  # Use with the CupertinoIcons class for iOS style icons.
+  cupertino_icons: ^1.0.8
 
 dependency_overrides:
   geolocator_android: ^4.6.1
   geolocator_platform_interface: ^4.2.4
 
-  # The following adds the Cupertino Icons font to your application.
-  # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.8
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
-
- 
   flutter_lints: ^5.0.0
 
 # For information on the generic Dart part of this file, see the
@@ -47,10 +44,8 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
-
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
 
-  

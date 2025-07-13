@@ -3,7 +3,7 @@
   import 'package:supabase_flutter/supabase_flutter.dart';
   import 'service.dart';
 
-  class AppLifecycleObserver with WidgetsBindingObserver {
+    class AppLifecycleObserver with WidgetsBindingObserver {
     final UserActivityService _userActivityService;
     bool _isLoggedIn = false;
 

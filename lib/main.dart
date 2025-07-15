@@ -12,6 +12,7 @@ import 'package:kabanza/utils/LocationUpdater.dart';
 import 'package:kabanza/Rider/Bookride/bookridepage.dart';
 import 'package:kabanza/Rider/Bookride/rideTracking.dart';
 import 'package:kabanza/AuthManager.dart';
+import 'package:kabanza/VehiclesScreen.dart'; // Add this import
 
 // Global instances
 late final UserActivityService userActivityService;
@@ -81,6 +82,7 @@ class MyApp extends StatelessWidget {
         AppRoutes.riderHome: (context) => const RiderHomePage(),
         AppRoutes.driverHome: (context) => const DriverHomePage(),
         AppRoutes.bookRide: (context) => const BookRidePage(apiKey: 'AIzaSyAwBZT0LlveffJVjzRXoRGPOfKsrrm8Y-o'),
+        AppRoutes.vehicleDetails: (context) => const VehicleDetailsScreen(), // Add this route
       },
       navigatorObservers: [],
       onGenerateRoute: (settings) {

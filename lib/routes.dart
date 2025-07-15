@@ -11,4 +11,5 @@ class AppRoutes {
   static const String rideTracking = '/ride-tracking';  // For RideTrackingPage
   static const String rideComplete = '/ride-complete';
   static const String messages = '/messages';
+  static const String vehicleDetails = '/vehicle-details';
 }

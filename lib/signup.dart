@@ -33,6 +33,31 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
+  Future<bool> _checkExistingUser() async {
+    try {
+      final email = _emailController.text.trim();
+
+      // Only check if email already exists (since email is unique)
+      final emailResponse = await _supabase
+          .from('users')
+          .select('email')
+          .eq('email', email)
+          .maybeSingle();
+
+      if (emailResponse != null) {
+        _showErrorSnackBar('A user with this email already exists. Please use a different email or sign in.');
+        return false;
+      }
+
+      // Allow multiple users with same phone number and let them create accounts
+      // The system will handle authentication via email anyway
+      return true;
+    } catch (error) {
+      _showErrorSnackBar('Error checking existing user: $error');
+      return false;
+    }
+  }
+
   Future<void> _signup() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -41,6 +66,15 @@ class _SignupScreenState extends State<SignupScreen> {
     });
 
     try {
+      // Check for existing users first
+      final canProceed = await _checkExistingUser();
+      if (!canProceed) {
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
       // Sign up with Supabase Auth
       final response = await _supabase.auth.signUp(
         email: _emailController.text.trim(),
@@ -60,7 +94,7 @@ class _SignupScreenState extends State<SignupScreen> {
           'full_name': _nameController.text.trim(),
           'phone': _phoneController.text.trim(),
           'role': _userType,
-          'is_active': false,
+          'is_active': true,
           'created_at': DateTime.now().toIso8601String(),
         });
 
@@ -74,26 +108,50 @@ class _SignupScreenState extends State<SignupScreen> {
           ),
         );
 
-        // Navigate back to login screen
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          AppRoutes.login,
-              (route) => false,
-        );
+        // Navigate based on user type
+        if (_userType == 'driver') {
+          // For drivers, navigate to vehicle details screen
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            AppRoutes.vehicleDetails, // Make sure this route exists in your AppRoutes
+                (route) => false,
+          );
+        } else {
+          // For riders, navigate to login screen
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            AppRoutes.login,
+                (route) => false,
+          );
+        }
       }
     } on AuthException catch (error) {
       if (!mounted) return;
+
+      // Handle specific auth errors
+      String errorMessage = error.message;
+      if (error.message.contains('User already registered')) {
+        errorMessage = 'A user with this email already exists. Please use a different email or sign in.';
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(error.message),
+          content: Text(errorMessage),
           backgroundColor: Colors.red,
         ),
       );
     } on PostgrestException catch (error) {
       if (!mounted) return;
+
+      // Handle database constraint errors
+      String errorMessage = error.message;
+      if (error.message.contains('users_email_key')) {
+        errorMessage = 'A user with this email already exists. Please use a different email.';
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(error.message),
+          content: Text(errorMessage),
           backgroundColor: Colors.red,
         ),
       );
@@ -112,6 +170,17 @@ class _SignupScreenState extends State<SignupScreen> {
         });
       }
     }
+  }
+
+  void _showErrorSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 
   void _navigateToLogin() {

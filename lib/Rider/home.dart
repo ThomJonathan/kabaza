@@ -8,7 +8,7 @@ import '../routes.dart';
 import 'backend/homebackend.dart';
 import 'homeUI.dart';
 import 'BottomNavBar.dart';
-
+import 'package:kabanza/AuthManager.dart';
 
 class RiderHomePage extends StatefulWidget {
   const RiderHomePage({Key? key}) : super(key: key);
@@ -22,8 +22,11 @@ class _RiderHomePageState extends State<RiderHomePage> {
   late RiderHomeBackend _backend;
 
   Map<String, dynamic>? userProfile;
+  Map<String, dynamic>? currentRideRequest;
+  List<Map<String, dynamic>> recentTrips = [];
   bool _isLoading = true;
   bool _isLocationLoading = false;
+  bool _isUpdatingRideStatus = false;
 
   // Service instances
   late UserActivityService _userActivityService;
@@ -67,6 +70,157 @@ class _RiderHomePageState extends State<RiderHomePage> {
 
   Future<void> _initializeApp() async {
     await _backend.initializeApp();
+    await _loadRideData();
+  }
+
+  Future<void> _loadRideData() async {
+    await _loadCurrentRideRequest();
+    await _loadRecentTrips();
+  }
+  Future<void> _loadCurrentRideRequest() async {
+    try {
+      final userId = AppAuthManager.getCurrentUserId();
+      if (userId == null) return;
+
+      final response = await supabase
+          .from('ride_requests')
+          .select('''
+          *,
+          driver:driver_id(full_name, phone)
+        ''')
+          .eq('user_id', userId)
+          .inFilter('status', ['pending', 'accepted', 'in_progress']) // Changed from in_ to inFilter
+          .order('created_at', ascending: false)
+          .limit(1);
+
+      if (response.isNotEmpty) {
+        setState(() {
+          currentRideRequest = response.first;
+        });
+      }
+    } catch (e) {
+      print('Error loading current ride request: $e');
+    }
+  }
+
+  Future<void> _loadRecentTrips() async {
+    try {
+      final userId = AppAuthManager.getCurrentUserId();
+      if (userId == null) return;
+
+      final response = await supabase
+          .from('ride_requests')
+          .select('''
+            *,
+            driver:driver_id(full_name, phone)
+          ''')
+          .eq('user_id', userId)
+          .eq('status', 'completed')
+          .order('completed_at', ascending: false)
+          .limit(10);
+
+      setState(() {
+        recentTrips = List<Map<String, dynamic>>.from(response);
+      });
+    } catch (e) {
+      print('Error loading recent trips: $e');
+    }
+  }
+
+  Future<void> _markRideAsCompleted() async {
+    if (currentRideRequest == null || _isUpdatingRideStatus) return;
+
+    setState(() {
+      _isUpdatingRideStatus = true;
+    });
+
+    try {
+      final rideId = currentRideRequest!['id'];
+      final now = DateTime.now().toIso8601String();
+
+      await supabase
+          .from('ride_requests')
+          .update({
+        'status': 'completed',
+        'completed_at': now,
+      })
+          .eq('id', rideId);
+
+      _showSuccessSnackBar('Ride marked as completed successfully!');
+
+      // Refresh the ride data
+      await _loadRideData();
+
+      setState(() {
+        currentRideRequest = null;
+      });
+    } catch (e) {
+      _showErrorSnackBar('Failed to mark ride as completed: ${e.toString()}');
+    } finally {
+      setState(() {
+        _isUpdatingRideStatus = false;
+      });
+    }
+  }
+
+  Future<void> _cancelRide() async {
+    if (currentRideRequest == null || _isUpdatingRideStatus) return;
+
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancel Ride'),
+        content: const Text('Are you sure you want to cancel this ride?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Yes, Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() {
+      _isUpdatingRideStatus = true;
+    });
+
+    try {
+      final rideId = currentRideRequest!['id'];
+      final userId = AppAuthManager.getCurrentUserId();
+      final now = DateTime.now().toIso8601String();
+
+      await supabase
+          .from('ride_requests')
+          .update({
+        'status': 'cancelled',
+        'cancelled_at': now,
+        'cancelled_by': userId,
+        'cancellation_reason': 'Cancelled by rider',
+      })
+          .eq('id', rideId);
+
+      _showSuccessSnackBar('Ride cancelled successfully!');
+
+      // Refresh the ride data
+      await _loadRideData();
+
+      setState(() {
+        currentRideRequest = null;
+      });
+    } catch (e) {
+      _showErrorSnackBar('Failed to cancel ride: ${e.toString()}');
+    } finally {
+      setState(() {
+        _isUpdatingRideStatus = false;
+      });
+    }
   }
 
   @override
@@ -145,11 +299,19 @@ class _RiderHomePageState extends State<RiderHomePage> {
         onSettingsSelected: () => Navigator.pushNamed(context, '/settings'),
         onLogoutSelected: _signOut,
       ),
-      body: RiderHomeUI.buildBody(
-        context: context,
-        onRequestRide: _requestRide,
-        onRequestDelivery: _requestDelivery,
-        onViewRideHistory: _viewRideHistory,
+      body: RefreshIndicator(
+        onRefresh: _loadRideData,
+        child: RiderHomeUI.buildBody(
+          context: context,
+          currentRideRequest: currentRideRequest,
+          recentTrips: recentTrips,
+          isUpdatingRideStatus: _isUpdatingRideStatus,
+          onRequestRide: _requestRide,
+          onRequestDelivery: _requestDelivery,
+          onViewRideHistory: _viewRideHistory,
+          onMarkRideCompleted: _markRideAsCompleted,
+          onCancelRide: _cancelRide,
+        ),
       ),
       bottomNavigationBar: RiderBottomNavigation(
         currentIndex: 0,

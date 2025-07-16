@@ -152,6 +152,14 @@ class _BookRidePageState extends State<BookRidePage> {
       final driver = _nearbyDrivers[i];
       final isSelected = _selectedDriver?['id'] == driver['id'];
 
+      // Get vehicle info for display
+      final vehicleType = driver['vehicle_type'] ?? 'Unknown';
+      final vehicleMake = driver['vehicle_make'] ?? '';
+      final vehicleModel = driver['vehicle_model'] ?? '';
+      final vehicleInfo = vehicleMake.isNotEmpty && vehicleModel.isNotEmpty
+          ? '$vehicleMake $vehicleModel'
+          : vehicleType;
+
       _markers.add(Marker(
         markerId: MarkerId('driver_${driver['id']}'),
         position: LatLng(driver['latitude'], driver['longitude']),
@@ -159,8 +167,8 @@ class _BookRidePageState extends State<BookRidePage> {
             isSelected ? BitmapDescriptor.hueOrange : BitmapDescriptor.hueBlue
         ),
         infoWindow: InfoWindow(
-          title: '${driver['full_name']} (Driver)',
-          snippet: '${driver['distance_km'].toStringAsFixed(1)} km away - Tap to select',
+          title: '${driver['full_name']} (${vehicleType.toUpperCase()})',
+          snippet: '${driver['distance_km'].toStringAsFixed(1)} km away • $vehicleInfo',
         ),
         onTap: () => _selectDriver(driver),
       ));
@@ -172,7 +180,13 @@ class _BookRidePageState extends State<BookRidePage> {
       _selectedDriver = driver;
     });
     _addDriverMarkers(); // Refresh markers to show selection
-    _showSnackBar('Driver ${driver['full_name']} selected');
+
+    final vehicleType = driver['vehicle_type'] ?? 'Unknown';
+    final vehicleInfo = driver['vehicle_make'] != null && driver['vehicle_model'] != null
+        ? ' (${driver['vehicle_make']} ${driver['vehicle_model']})'
+        : '';
+
+    _showSnackBar('${driver['full_name']} selected - ${vehicleType.toUpperCase()}$vehicleInfo');
   }
 
   Future<void> _searchDestination() async {
@@ -350,16 +364,75 @@ class _BookRidePageState extends State<BookRidePage> {
                   final driver = _nearbyDrivers[index];
                   final isSelected = _selectedDriver?['id'] == driver['id'];
 
+                  // Get vehicle information
+                  final vehicleType = driver['vehicle_type'] ?? 'Unknown';
+                  final vehicleMake = driver['vehicle_make'] ?? '';
+                  final vehicleModel = driver['vehicle_model'] ?? '';
+                  final vehicleInfo = vehicleMake.isNotEmpty && vehicleModel.isNotEmpty
+                      ? '$vehicleMake $vehicleModel'
+                      : 'Vehicle info not available';
+
                   return Card(
                     color: isSelected ? Colors.blue[50] : null,
                     child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: Colors.blue,
-                        child: Text(driver['full_name'][0]),
+                      leading: Stack(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: Colors.blue,
+                            child: Text(driver['full_name'][0]),
+                          ),
+                          Positioned(
+                            right: -2,
+                            bottom: -2,
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                color: vehicleType.toLowerCase() == 'car' ? Colors.green : Colors.orange,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
+                                vehicleType.toLowerCase() == 'car' ? Icons.directions_car : Icons.motorcycle,
+                                size: 12,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      title: Text(driver['full_name']),
-                      subtitle: Text(
-                          '${driver['distance_km'].toStringAsFixed(1)} km away'
+                      title: Row(
+                        children: [
+                          Expanded(child: Text(driver['full_name'])),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: vehicleType.toLowerCase() == 'car' ? Colors.green[100] : Colors.orange[100],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              vehicleType.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: vehicleType.toLowerCase() == 'car' ? Colors.green[800] : Colors.orange[800],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('${driver['distance_km'].toStringAsFixed(1)} km away'),
+                          if (vehicleMake.isNotEmpty && vehicleModel.isNotEmpty)
+                            Text(
+                              vehicleInfo,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                        ],
                       ),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -501,7 +574,7 @@ class _BookRidePageState extends State<BookRidePage> {
                 if (_selectedDriver != null) ...[
                   const SizedBox(height: 8),
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: Colors.blue[50],
                       borderRadius: BorderRadius.circular(8),
@@ -509,12 +582,93 @@ class _BookRidePageState extends State<BookRidePage> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.person, color: Colors.blue),
-                        const SizedBox(width: 8),
+                        // Driver avatar with vehicle icon
+                        Stack(
+                          children: [
+                            CircleAvatar(
+                              backgroundColor: Colors.blue,
+                              radius: 20,
+                              child: Text(
+                                _selectedDriver!['full_name'][0],
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            Positioned(
+                              right: -2,
+                              bottom: -2,
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: BoxDecoration(
+                                  color: (_selectedDriver!['vehicle_type'] ?? '').toLowerCase() == 'car'
+                                      ? Colors.green : Colors.orange,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  (_selectedDriver!['vehicle_type'] ?? '').toLowerCase() == 'car'
+                                      ? Icons.directions_car : Icons.motorcycle,
+                                  size: 12,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 12),
                         Expanded(
-                          child: Text(
-                            'Selected: ${_selectedDriver!['full_name']} (${_selectedDriver!['distance_km'].toStringAsFixed(1)} km)',
-                            style: const TextStyle(fontWeight: FontWeight.w500),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      _selectedDriver!['full_name'],
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: (_selectedDriver!['vehicle_type'] ?? '').toLowerCase() == 'car'
+                                          ? Colors.green[100] : Colors.orange[100],
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      (_selectedDriver!['vehicle_type'] ?? 'Unknown').toUpperCase(),
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: (_selectedDriver!['vehicle_type'] ?? '').toLowerCase() == 'car'
+                                            ? Colors.green[800] : Colors.orange[800],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${_selectedDriver!['distance_km'].toStringAsFixed(1)} km away',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 12,
+                                ),
+                              ),
+                              if (_selectedDriver!['vehicle_make'] != null &&
+                                  _selectedDriver!['vehicle_model'] != null &&
+                                  _selectedDriver!['vehicle_make'].toString().isNotEmpty &&
+                                  _selectedDriver!['vehicle_model'].toString().isNotEmpty)
+                                Text(
+                                  '${_selectedDriver!['vehicle_make']} ${_selectedDriver!['vehicle_model']}',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 12,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                         IconButton(

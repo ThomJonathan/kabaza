@@ -147,12 +147,16 @@ class RiderHomeUI {
         children: [
           // Current Ride Request Section
           if (currentRideRequest != null) ...[
-            _buildCurrentRideSection(
-              context: context,
-              currentRideRequest: currentRideRequest,
-              isUpdatingRideStatus: isUpdatingRideStatus,
-              onMarkRideCompleted: onMarkRideCompleted,
-              onCancelRide: onCancelRide,
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: _buildCurrentRideSection(
+                key: ValueKey(currentRideRequest!['id']),
+                context: context,
+                currentRideRequest: currentRideRequest,
+                isUpdatingRideStatus: isUpdatingRideStatus,
+                onMarkRideCompleted: onMarkRideCompleted,
+                onCancelRide: onCancelRide,
+              ),
             ),
             const SizedBox(height: 20),
           ],
@@ -184,6 +188,7 @@ class RiderHomeUI {
   }
 
   static Widget _buildCurrentRideSection({
+    Key? key,
     required BuildContext context,
     required Map<String, dynamic> currentRideRequest,
     required bool isUpdatingRideStatus,
@@ -199,26 +204,43 @@ class RiderHomeUI {
 
     Color statusColor;
     IconData statusIcon;
+    String statusTitle;
+    String statusSubtitle;
 
     switch (status) {
       case 'pending':
         statusColor = Colors.orange;
         statusIcon = Icons.hourglass_empty;
+        statusTitle = 'Finding Driver';
+        statusSubtitle = 'Looking for available drivers nearby...';
         break;
       case 'accepted':
         statusColor = Colors.blue;
         statusIcon = Icons.check_circle_outline;
+        statusTitle = 'Driver Assigned';
+        statusSubtitle = 'Your driver is on the way to pick you up';
         break;
       case 'in_progress':
         statusColor = Colors.green;
         statusIcon = Icons.directions_car;
+        statusTitle = 'Ride in Progress';
+        statusSubtitle = 'You are currently on your way';
+        break;
+      case 'declined':
+        statusColor = Colors.red;
+        statusIcon = Icons.cancel_outlined;
+        statusTitle = 'Finding New Driver';
+        statusSubtitle = 'Previous driver declined, finding another...';
         break;
       default:
         statusColor = Colors.grey;
         statusIcon = Icons.info_outline;
+        statusTitle = 'Ride Status';
+        statusSubtitle = 'Status unknown';
     }
 
     return Container(
+      key: key,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -235,32 +257,72 @@ class RiderHomeUI {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header with status
+          // Header with animated status
           Row(
             children: [
-              Icon(statusIcon, color: statusColor, size: 24),
-              const SizedBox(width: 8),
-              Text(
-                'Current Ride',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  child: Icon(
+                    statusIcon,
+                    key: ValueKey(statusIcon),
+                    color: statusColor,
+                    size: 24,
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: Text(
+                        statusTitle,
+                        key: ValueKey(statusTitle),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: Text(
+                        statusSubtitle,
+                        key: ValueKey(statusSubtitle),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: statusColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(
-                  status.toUpperCase(),
-                  style: TextStyle(
-                    color: statusColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  child: Text(
+                    status.toUpperCase(),
+                    key: ValueKey(status),
+                    style: TextStyle(
+                      color: statusColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
@@ -269,14 +331,101 @@ class RiderHomeUI {
 
           const SizedBox(height: 16),
 
-          // Driver Information (Phone number removed for security)
-          if (driverData != null) ...[
-            _buildInfoRow(
-              icon: Icons.person_outline,
-              label: 'Driver',
-              value: driverData['full_name'] ?? 'Unknown Driver',
+          // Real-time loading indicator for pending/declined status
+          if (status == 'pending' || status == 'declined') ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      status == 'pending'
+                          ? 'Searching for nearby drivers...'
+                          : 'Finding another driver...',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[700],
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
+          ],
+
+          // Driver Information (only show when driver is assigned)
+          if (driverData != null && (status == 'accepted' || status == 'in_progress')) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue[200]!),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundColor: Colors.blue,
+                        child: Text(
+                          driverData['full_name']?[0]?.toUpperCase() ?? 'D',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              driverData['full_name'] ?? 'Unknown Driver',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              'Your Driver',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.call, color: Colors.blue),
+                        onPressed: () {
+                          // Call driver functionality
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
           ],
 
           // Trip Details
@@ -320,7 +469,10 @@ class RiderHomeUI {
                         ? const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
                     )
                         : const Icon(Icons.check_circle),
                     label: const Text('Mark as Completed'),
@@ -328,26 +480,36 @@ class RiderHomeUI {
                       backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                   ),
                 ),
+                const SizedBox(width: 12),
               ],
-              if (status == 'pending' || status == 'accepted') ...[
+              if (status == 'pending' || status == 'accepted' || status == 'declined') ...[
                 Expanded(
-                  child: ElevatedButton.icon(
+                  child: OutlinedButton.icon(
                     onPressed: isUpdatingRideStatus ? null : onCancelRide,
                     icon: isUpdatingRideStatus
                         ? const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
+                      ),
                     )
                         : const Icon(Icons.cancel),
                     label: const Text('Cancel Ride'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
                       padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                   ),
                 ),
@@ -364,160 +526,46 @@ class RiderHomeUI {
     required VoidCallback onRequestRide,
     required VoidCallback onRequestDelivery,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Quick Actions',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _buildQuickActionCard(
-                  icon: Icons.local_taxi,
-                  title: 'Book Ride',
-                  subtitle: 'Get a ride now',
-                  color: Theme.of(context).primaryColor,
-                  onTap: onRequestRide,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildQuickActionCard(
-                  icon: Icons.delivery_dining,
-                  title: 'Delivery',
-                  subtitle: 'Send packages',
-                  color: Colors.orange,
-                  onTap: onRequestDelivery,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  static Widget _buildRecentTripsSection({
-    required BuildContext context,
-    required List<Map<String, dynamic>> recentTrips,
-    required VoidCallback onViewRideHistory,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Recent Trips',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-              ),
-              TextButton(
-                onPressed: onViewRideHistory,
-                child: const Text('View All'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (recentTrips.isEmpty)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(20),
-                child: Text(
-                  'No recent trips yet',
-                  style: TextStyle(
-                    color: Colors.grey,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            )
-          else
-            ...recentTrips.take(3).map((trip) {
-              final index = recentTrips.indexOf(trip);
-              return Column(
-                children: [
-                  if (index > 0) const Divider(height: 24),
-                  _buildRecentTripItem(trip),
-                ],
-              );
-            }).toList(),
-        ],
-      ),
-    );
-  }
-
-  static Widget _buildQuickStatsSection({required List<Map<String, dynamic>> recentTrips}) {
-    final totalTrips = recentTrips.length;
-    final totalAmount = recentTrips.fold<double>(0, (sum, trip) {
-      final fare = trip['actual_fare'];
-      if (fare != null) {
-        return sum + (fare is num ? fare.toDouble() : 0.0);
-      }
-      return sum;
-    });
-
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: _buildStatCard(
-            'Total Trips',
-            totalTrips.toString(),
-            Icons.directions_car_outlined,
-            Colors.blue,
+        const Text(
+          'Quick Actions',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
           ),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildStatCard(
-            'Total Spent',
-            '\$${totalAmount.toStringAsFixed(2)}',
-            Icons.attach_money_outlined,
-            Colors.green,
-          ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildActionCard(
+                icon: Icons.directions_car,
+                title: 'Request Ride',
+                subtitle: 'Get a ride to your destination',
+                color: Colors.blue,
+                onTap: onRequestRide,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildActionCard(
+                icon: Icons.local_shipping,
+                title: 'Delivery',
+                subtitle: 'Send or receive packages',
+                color: Colors.orange,
+                onTap: onRequestDelivery,
+              ),
+            ),
+          ],
         ),
       ],
     );
   }
 
-  static Widget _buildQuickActionCard({
+  static Widget _buildActionCard({
     required IconData icon,
     required String title,
     required String subtitle,
@@ -527,35 +575,49 @@ class RiderHomeUI {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: color.withOpacity(0.2)),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(10),
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: Colors.white, size: 24),
+              child: Icon(
+                icon,
+                color: color,
+                size: 24,
+              ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Text(
               title,
               style: const TextStyle(
+                fontSize: 16,
                 fontWeight: FontWeight.w600,
-                fontSize: 14,
+                color: Colors.black87,
               ),
             ),
+            const SizedBox(height: 4),
             Text(
               subtitle,
               style: TextStyle(
-                color: Colors.grey[600],
                 fontSize: 12,
+                color: Colors.grey[600],
               ),
             ),
           ],
@@ -564,106 +626,278 @@ class RiderHomeUI {
     );
   }
 
-  static Widget _buildRecentTripItem(Map<String, dynamic> trip) {
+  static Widget _buildRecentTripsSection({
+    required BuildContext context,
+    required List<Map<String, dynamic>> recentTrips,
+    required VoidCallback onViewRideHistory,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Recent Trips',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            if (recentTrips.isNotEmpty)
+              TextButton(
+                onPressed: onViewRideHistory,
+                child: const Text('View All'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (recentTrips.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey[200]!),
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.history,
+                  size: 48,
+                  color: Colors.grey[400],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'No recent trips',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Your completed trips will appear here',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[500],
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          ...recentTrips.take(3).map((trip) => _buildTripCard(trip)),
+      ],
+    );
+  }
+
+  static Widget _buildTripCard(Map<String, dynamic> trip) {
     final pickupAddress = trip['pickup_address'] as String?;
     final destinationAddress = trip['destination_address'] as String?;
     final completedAt = trip['completed_at'] as String?;
-    final actualFare = trip['actual_fare'];
+    final estimatedDistance = trip['estimated_distance'] as String?;
     final driverData = trip['driver'] as Map<String, dynamic>?;
 
-    String route = 'Unknown Route';
-    if (pickupAddress != null && destinationAddress != null) {
-      route = '${_truncateAddress(pickupAddress)} → ${_truncateAddress(destinationAddress)}';
-    }
-
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.green.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Icon(Icons.check_circle, color: Colors.green, size: 20),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Text(
-                route,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 14,
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              Text(
-                completedAt != null ? _formatDateTime(completedAt) : 'Unknown date',
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 12,
+                child: const Icon(
+                  Icons.check_circle,
+                  color: Colors.green,
+                  size: 16,
                 ),
               ),
-              if (driverData != null)
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Trip Completed',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+              ),
+              if (completedAt != null)
                 Text(
-                  'Driver: ${driverData['full_name'] ?? 'Unknown'}',
+                  _formatDateTime(completedAt),
                   style: TextStyle(
+                    fontSize: 12,
                     color: Colors.grey[600],
-                    fontSize: 11,
                   ),
                 ),
             ],
           ),
-        ),
-        Text(
-          actualFare != null ? '\$${actualFare.toString()}' : 'N/A',
-          style: const TextStyle(
+          const SizedBox(height: 12),
+          _buildInfoRow(
+            icon: Icons.my_location_outlined,
+            label: 'From',
+            value: pickupAddress ?? 'Unknown location',
+          ),
+          const SizedBox(height: 8),
+          _buildInfoRow(
+            icon: Icons.location_on_outlined,
+            label: 'To',
+            value: destinationAddress ?? 'Unknown destination',
+          ),
+          if (estimatedDistance != null || driverData != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                if (estimatedDistance != null) ...[
+                  Icon(
+                    Icons.straighten_outlined,
+                    size: 16,
+                    color: Colors.grey[600],
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    estimatedDistance,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+                if (estimatedDistance != null && driverData != null) ...[
+                  const SizedBox(width: 16),
+                  Text(
+                    '•',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                ],
+                if (driverData != null) ...[
+                  Icon(
+                    Icons.person_outline,
+                    size: 16,
+                    color: Colors.grey[600],
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    driverData['full_name'] ?? 'Unknown driver',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  static Widget _buildQuickStatsSection({
+    required List<Map<String, dynamic>> recentTrips,
+  }) {
+    if (recentTrips.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Quick Stats',
+          style: TextStyle(
+            fontSize: 20,
             fontWeight: FontWeight.w600,
-            fontSize: 14,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey[200]!),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildStatItem(
+                  icon: Icons.directions_car,
+                  label: 'Total Trips',
+                  value: recentTrips.length.toString(),
+                  color: Colors.blue,
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 40,
+                color: Colors.grey[200],
+              ),
+              Expanded(
+                child: _buildStatItem(
+                  icon: Icons.access_time,
+                  label: 'This Month',
+                  value: _getThisMonthTrips(recentTrips).toString(),
+                  color: Colors.green,
+                ),
+              ),
+            ],
           ),
         ),
       ],
     );
   }
 
-  static Widget _buildStatCard(String title, String value, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+  static Widget _buildStatItem({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Column(
+      children: [
+        Icon(
+          icon,
+          color: color,
+          size: 24,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: color,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[600],
           ),
-          Text(
-            title,
-            style: TextStyle(
-              color: Colors.grey[600],
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -673,31 +907,28 @@ class RiderHomeUI {
     required String value,
   }) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: Colors.grey[600]),
+        Icon(
+          icon,
+          size: 16,
+          color: Colors.grey[600],
+        ),
         const SizedBox(width: 8),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w500,
-                ),
+          child: RichText(
+            text: TextSpan(
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey[800],
               ),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
+              children: [
+                TextSpan(
+                  text: '$label: ',
+                  style: const TextStyle(fontWeight: FontWeight.w500),
                 ),
-              ),
-            ],
+                TextSpan(text: value),
+              ],
+            ),
           ),
         ),
       ],
@@ -707,16 +938,38 @@ class RiderHomeUI {
   static String _formatDateTime(String dateTimeString) {
     try {
       final dateTime = DateTime.parse(dateTimeString);
-      return DateFormat('MMM dd, yyyy - hh:mm a').format(dateTime);
+      final now = DateTime.now();
+      final difference = now.difference(dateTime);
+
+      if (difference.inDays == 0) {
+        return DateFormat('HH:mm').format(dateTime);
+      } else if (difference.inDays == 1) {
+        return 'Yesterday ${DateFormat('HH:mm').format(dateTime)}';
+      } else if (difference.inDays < 7) {
+        return DateFormat('EEE HH:mm').format(dateTime);
+      } else {
+        return DateFormat('MMM dd, HH:mm').format(dateTime);
+      }
     } catch (e) {
       return 'Invalid date';
     }
   }
 
-  static String _truncateAddress(String address) {
-    if (address.length > 20) {
-      return '${address.substring(0, 20)}...';
-    }
-    return address;
+  static int _getThisMonthTrips(List<Map<String, dynamic>> trips) {
+    final now = DateTime.now();
+    final thisMonth = DateTime(now.year, now.month, 1);
+    final nextMonth = DateTime(now.year, now.month + 1, 1);
+
+    return trips.where((trip) {
+      final completedAt = trip['completed_at'] as String?;
+      if (completedAt == null) return false;
+
+      try {
+        final dateTime = DateTime.parse(completedAt);
+        return dateTime.isAfter(thisMonth) && dateTime.isBefore(nextMonth);
+      } catch (e) {
+        return false;
+      }
+    }).length;
   }
 }

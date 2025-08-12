@@ -33,6 +33,9 @@ class _RiderHomePageState extends State<RiderHomePage> {
   late AppLifecycleObserver _appLifecycleObserver;
   late LocationUpdater _locationUpdater;
 
+  // Real-time subscription
+  RealtimeChannel? _rideRequestChannel;
+
   @override
   void initState() {
     super.initState();
@@ -71,12 +74,164 @@ class _RiderHomePageState extends State<RiderHomePage> {
   Future<void> _initializeApp() async {
     await _backend.initializeApp();
     await _loadRideData();
+    _setupRealTimeSubscription();
+  }
+
+  void _setupRealTimeSubscription() {
+    final userId = AppAuthManager.getCurrentUserId();
+    if (userId == null) return;
+
+    // Remove existing subscription if any
+    _rideRequestChannel?.unsubscribe();
+
+    // Create new subscription for ride requests
+    // Use PostgresChangeEvent.all for subscription, but individual events will be received
+    _rideRequestChannel = supabase
+        .channel('ride_requests_$userId')
+        .onPostgresChanges(
+      event: PostgresChangeEvent.all, // This subscribes to all events
+      schema: 'public',
+      table: 'ride_requests',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'user_id',
+        value: userId,
+      ),
+      callback: _handleRideRequestChange,
+    )
+        .subscribe();
+  }
+
+  void _handleRideRequestChange(PostgresChangePayload payload) {
+    print('Real-time update received: ${payload.eventType}');
+
+    switch (payload.eventType) {
+      case PostgresChangeEvent.insert:
+        _handleRideRequestInsert(payload.newRecord);
+        break;
+      case PostgresChangeEvent.update:
+        _handleRideRequestUpdateEvent(payload.newRecord);
+        break;
+      case PostgresChangeEvent.delete:
+        _handleRideRequestDelete(payload.oldRecord);
+        break;
+      default:
+        print('Unknown event type: ${payload.eventType}');
+        break;
+    }
+  }
+
+  void _handleRideRequestInsert(Map<String, dynamic> newRecord) {
+    // New ride request created
+    print('New ride request created: ${newRecord['id']}');
+    _loadCurrentRideRequestWithDetails(newRecord['id']);
+  }
+
+  void _handleRideRequestUpdateEvent(Map<String, dynamic> updatedRecord) {
+    final rideId = updatedRecord['id'];
+    final status = updatedRecord['status'];
+
+    print('Ride request updated: $rideId, status: $status');
+
+    // Check if this is the current ride request
+    if (currentRideRequest != null && currentRideRequest!['id'] == rideId) {
+      // Update the current ride request with new data
+      _loadCurrentRideRequestWithDetails(rideId);
+
+      // Show appropriate notifications based on status
+      _showRideStatusNotification(status);
+    }
+
+    // If ride is completed or cancelled, refresh recent trips
+    if (status == 'completed' || status == 'cancelled') {
+      _loadRecentTrips();
+    }
+  }
+
+  void _handleRideRequestDelete(Map<String, dynamic> deletedRecord) {
+    final deletedId = deletedRecord['id'];
+
+    if (currentRideRequest != null && currentRideRequest!['id'] == deletedId) {
+      setState(() {
+        currentRideRequest = null;
+      });
+    }
+
+    // Refresh recent trips
+    _loadRecentTrips();
+  }
+
+  void _showRideStatusNotification(String status) {
+    String message;
+    Color backgroundColor;
+
+    switch (status) {
+      case 'accepted':
+        message = 'Great! Your ride has been accepted by a driver.';
+        backgroundColor = Colors.green;
+        break;
+      case 'declined':
+        message = 'Your ride was declined. We\'re finding another driver for you.';
+        backgroundColor = Colors.orange;
+        break;
+      case 'in_progress':
+        message = 'Your ride is now in progress!';
+        backgroundColor = Colors.blue;
+        break;
+      case 'completed':
+        message = 'Your ride has been completed. Thank you for using our service!';
+        backgroundColor = Colors.green;
+        break;
+      case 'cancelled':
+        message = 'Your ride has been cancelled.';
+        backgroundColor = Colors.red;
+        break;
+      default:
+        return; // Don't show notification for other statuses
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: backgroundColor,
+          duration: const Duration(seconds: 4),
+          action: SnackBarAction(
+            label: 'OK',
+            textColor: Colors.white,
+            onPressed: () {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            },
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _loadCurrentRideRequestWithDetails(int rideId) async {
+    try {
+      final response = await supabase
+          .from('ride_requests')
+          .select('''
+            *,
+            driver:driver_id(full_name, phone)
+          ''')
+          .eq('id', rideId)
+          .single();
+
+      setState(() {
+        currentRideRequest = response;
+      });
+    } catch (e) {
+      print('Error loading ride request details: $e');
+    }
   }
 
   Future<void> _loadRideData() async {
     await _loadCurrentRideRequest();
     await _loadRecentTrips();
   }
+
   Future<void> _loadCurrentRideRequest() async {
     try {
       final userId = AppAuthManager.getCurrentUserId();
@@ -85,17 +240,21 @@ class _RiderHomePageState extends State<RiderHomePage> {
       final response = await supabase
           .from('ride_requests')
           .select('''
-          *,
-          driver:driver_id(full_name, phone)
-        ''')
+            *,
+            driver:driver_id(full_name, phone)
+          ''')
           .eq('user_id', userId)
-          .inFilter('status', ['pending', 'accepted', 'in_progress']) // Changed from in_ to inFilter
+          .inFilter('status', ['pending', 'accepted', 'in_progress'])
           .order('created_at', ascending: false)
           .limit(1);
 
       if (response.isNotEmpty) {
         setState(() {
           currentRideRequest = response.first;
+        });
+      } else {
+        setState(() {
+          currentRideRequest = null;
         });
       }
     } catch (e) {
@@ -148,12 +307,8 @@ class _RiderHomePageState extends State<RiderHomePage> {
 
       _showSuccessSnackBar('Ride marked as completed successfully!');
 
-      // Refresh the ride data
-      await _loadRideData();
+      // The real-time subscription will handle the UI update
 
-      setState(() {
-        currentRideRequest = null;
-      });
     } catch (e) {
       _showErrorSnackBar('Failed to mark ride as completed: ${e.toString()}');
     } finally {
@@ -208,12 +363,8 @@ class _RiderHomePageState extends State<RiderHomePage> {
 
       _showSuccessSnackBar('Ride cancelled successfully!');
 
-      // Refresh the ride data
-      await _loadRideData();
+      // The real-time subscription will handle the UI update
 
-      setState(() {
-        currentRideRequest = null;
-      });
     } catch (e) {
       _showErrorSnackBar('Failed to cancel ride: ${e.toString()}');
     } finally {
@@ -225,6 +376,7 @@ class _RiderHomePageState extends State<RiderHomePage> {
 
   @override
   void dispose() {
+    _rideRequestChannel?.unsubscribe();
     _backend.dispose();
     super.dispose();
   }

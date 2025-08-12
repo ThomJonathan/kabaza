@@ -1,7 +1,6 @@
 class AppRoutes {
   static const String login = '/login';
   static const String signUp = '/sign-up';
-  static const String forgotPassword = '/forgot-password';
   static const String riderHome = '/rider-home';
   static const String driverHome = '/driver-home';
   static const String agentHome = '/agent-home';
@@ -12,4 +11,7 @@ class AppRoutes {
   static const String rideComplete = '/ride-complete';
   static const String messages = '/messages';
   static const String vehicleDetails = '/vehicle-details';
+  static const String forgotPassword = '/forgot-password';
+  static const String resetPassword = '/reset-password';
+  static const String changePassword = '/change-password';
 }

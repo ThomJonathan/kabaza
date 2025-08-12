@@ -135,7 +135,6 @@ class RiderHomeUI {
     required List<Map<String, dynamic>> recentTrips,
     required bool isUpdatingRideStatus,
     required VoidCallback onRequestRide,
-    required VoidCallback onRequestDelivery,
     required VoidCallback onViewRideHistory,
     required VoidCallback onMarkRideCompleted,
     required VoidCallback onCancelRide,
@@ -162,7 +161,6 @@ class RiderHomeUI {
             _buildQuickActionsSection(
               context: context,
               onRequestRide: onRequestRide,
-              onRequestDelivery: onRequestDelivery,
             ),
             const SizedBox(height: 20),
           ],
@@ -173,11 +171,6 @@ class RiderHomeUI {
             recentTrips: recentTrips,
             onViewRideHistory: onViewRideHistory,
           ),
-
-          const SizedBox(height: 20),
-
-          // Quick Stats
-          _buildQuickStatsSection(recentTrips: recentTrips),
         ],
       ),
     );
@@ -362,7 +355,6 @@ class RiderHomeUI {
   static Widget _buildQuickActionsSection({
     required BuildContext context,
     required VoidCallback onRequestRide,
-    required VoidCallback onRequestDelivery,
   }) {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -389,28 +381,14 @@ class RiderHomeUI {
             ),
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _buildQuickActionCard(
-                  icon: Icons.local_taxi,
-                  title: 'Book Ride',
-                  subtitle: 'Get a ride now',
-                  color: Theme.of(context).primaryColor,
-                  onTap: onRequestRide,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildQuickActionCard(
-                  icon: Icons.delivery_dining,
-                  title: 'Delivery',
-                  subtitle: 'Send packages',
-                  color: Colors.orange,
-                  onTap: onRequestDelivery,
-                ),
-              ),
-            ],
+          Center(
+            child: _buildQuickActionCard(
+              icon: Icons.local_taxi,
+              title: 'Book Ride',
+              subtitle: 'Get a ride now',
+              color: Theme.of(context).primaryColor,
+              onTap: onRequestRide,
+            ),
           ),
         ],
       ),
@@ -484,39 +462,6 @@ class RiderHomeUI {
     );
   }
 
-  static Widget _buildQuickStatsSection({required List<Map<String, dynamic>> recentTrips}) {
-    final totalTrips = recentTrips.length;
-    final totalAmount = recentTrips.fold<double>(0, (sum, trip) {
-      final fare = trip['actual_fare'];
-      if (fare != null) {
-        return sum + (fare is num ? fare.toDouble() : 0.0);
-      }
-      return sum;
-    });
-
-    return Row(
-      children: [
-        Expanded(
-          child: _buildStatCard(
-            'Total Trips',
-            totalTrips.toString(),
-            Icons.directions_car_outlined,
-            Colors.blue,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildStatCard(
-            'Total Spent',
-            '\$${totalAmount.toStringAsFixed(2)}',
-            Icons.attach_money_outlined,
-            Colors.green,
-          ),
-        ),
-      ],
-    );
-  }
-
   static Widget _buildQuickActionCard({
     required IconData icon,
     required String title,
@@ -527,7 +472,8 @@ class RiderHomeUI {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        width: 200,
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(12),
@@ -536,26 +482,27 @@ class RiderHomeUI {
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: color,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: Colors.white, size: 24),
+              child: Icon(icon, color: Colors.white, size: 32),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Text(
               title,
               style: const TextStyle(
                 fontWeight: FontWeight.w600,
-                fontSize: 14,
+                fontSize: 16,
               ),
             ),
+            const SizedBox(height: 4),
             Text(
               subtitle,
               style: TextStyle(
                 color: Colors.grey[600],
-                fontSize: 12,
+                fontSize: 14,
               ),
             ),
           ],
@@ -626,44 +573,6 @@ class RiderHomeUI {
           ),
         ),
       ],
-    );
-  }
-
-  static Widget _buildStatCard(String title, String value, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          Text(
-            title,
-            style: TextStyle(
-              color: Colors.grey[600],
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
     );
   }
 

@@ -281,76 +281,71 @@ class _DriverHomePageState extends State<DriverHomePage> {
 
             const SizedBox(height: 20),
 
-            // Today's Stats
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Today\'s Performance',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
+            // Hotspot Card
+            InkWell(
+              onTap: () {
+                Navigator.pushNamed(context, '/hotspot');
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DriverHomeWidgets.buildTodayStatCard(
-                          'Trips',
-                          driverProfile?['total_trips']?.toString() ?? '0',
-                          Icons.route_outlined,
-                          Colors.blue,
-                        ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DriverHomeWidgets.buildTodayStatCard(
-                          'Online Hours',
-                          '6h 30m', // You might want to calculate this
-                          Icons.access_time_outlined,
-                          Colors.orange,
-                        ),
+                      child: const Icon(
+                        Icons.local_fire_department,
+                        color: Colors.orange,
+                        size: 28,
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DriverHomeWidgets.buildTodayStatCard(
-                          'Rating',
-                          '${driverProfile?['average_rating']?.toString() ?? '0.0'}★',
-                          Icons.star_outline,
-                          Colors.amber,
-                        ),
+                    ),
+                    const SizedBox(width: 16),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Hotspot',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'View high demand areas',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DriverHomeWidgets.buildTodayStatCard(
-                          'Reviews',
-                          driverProfile?['total_reviews']?.toString() ?? '0',
-                          Icons.rate_review_outlined,
-                          Colors.purple,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                    ),
+                    const Icon(
+                      Icons.chevron_right,
+                      color: Colors.grey,
+                      size: 24,
+                    ),
+                  ],
+                ),
               ),
             ),
 

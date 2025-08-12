@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class BookRidePage extends StatefulWidget {
   final String? apiKey;
+
   const BookRidePage({Key? key, this.apiKey}) : super(key: key);
 
   @override

@@ -307,7 +307,6 @@ class _RiderHomePageState extends State<RiderHomePage> {
           recentTrips: recentTrips,
           isUpdatingRideStatus: _isUpdatingRideStatus,
           onRequestRide: _requestRide,
-          onRequestDelivery: _requestDelivery,
           onViewRideHistory: _viewRideHistory,
           onMarkRideCompleted: _markRideAsCompleted,
           onCancelRide: _cancelRide,

@@ -13,6 +13,11 @@ import 'package:kabanza/Rider/Bookride/bookridepage.dart';
 import 'package:kabanza/Rider/Bookride/rideTracking.dart';
 import 'package:kabanza/AuthManager.dart';
 import 'package:kabanza/VehiclesScreen.dart'; // Add this import
+import 'package:kabanza/ForgotPassword.dart';
+import 'package:kabanza/ResetPassword.dart';
+import 'package:kabanza/ChangePassword.dart';
+
+import 'ResertPassword.dart';
 
 // Global instances
 late final UserActivityService userActivityService;
@@ -54,7 +59,7 @@ Future<void> main() async {
 
 final _supabase = Supabase.instance.client;
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   final UserActivityService userActivityService;
   final AppLifecycleObserver appLifecycleObserver;
   final LocationUpdater locationUpdater;
@@ -65,6 +70,34 @@ class MyApp extends StatelessWidget {
     required this.appLifecycleObserver,
     required this.locationUpdater,
   });
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    _handleAuthStateChanges();
+  }
+
+  void _handleAuthStateChanges() {
+    Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      final event = data.event;
+      final session = data.session;
+
+      // Handle password recovery
+      if (event == AuthChangeEvent.passwordRecovery) {
+        // Navigate to reset password screen
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          AppRoutes.resetPassword,
+              (route) => false,
+        );
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -81,6 +114,9 @@ class MyApp extends StatelessWidget {
         AppRoutes.signUp: (context) => const SignupScreen(),
         AppRoutes.riderHome: (context) => const RiderHomePage(),
         AppRoutes.driverHome: (context) => const DriverHomePage(),
+        AppRoutes.forgotPassword: (context) => const ForgotPasswordScreen(),
+        AppRoutes.resetPassword: (context) => const ResetPasswordScreen(),
+        AppRoutes.changePassword: (context) => const ChangePasswordScreen(),
         AppRoutes.bookRide: (context) => const BookRidePage(apiKey: 'AIzaSyAwBZT0LlveffJVjzRXoRGPOfKsrrm8Y-o'),
         AppRoutes.vehicleDetails: (context) => const VehicleDetailsScreen(), // Add this route
       },
@@ -105,8 +141,8 @@ class MyApp extends StatelessWidget {
   String _getInitialRoute() {
     final user = _supabase.auth.currentUser;
     if (user != null) {
-      appLifecycleObserver.setLoggedIn(true);
-      userActivityService.setUserActive();
+      widget.appLifecycleObserver.setLoggedIn(true);
+      widget.userActivityService.setUserActive();
 
       // Initialize user data from database
       _initializeUserData(user);

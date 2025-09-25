@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
+import 'package:kabanza/routes.dart';
 import 'BottomNavBar.dart';
 import 'homewidget.dart';
 import 'backend/homebackend.dart';
@@ -22,6 +24,12 @@ class _DriverHomePageState extends State<DriverHomePage> {
   bool _isOnline = false;
   String _driverStatus = 'Offline';
   bool _isLocationLoading = false;
+
+  // Ride data
+  List<Map<String, dynamic>> _pendingRideRequests = [];
+  List<Map<String, dynamic>> _recentTrips = [];
+  Map<String, dynamic>? _activeRide;
+  bool _isLoadingRideData = false;
 
   @override
   void initState() {
@@ -83,10 +91,48 @@ class _DriverHomePageState extends State<DriverHomePage> {
       // Load profiles
       await _loadProfiles();
 
+      // Load ride data
+      await _loadRideData();
+
     } catch (e) {
       if (mounted) {
         setState(() {
           _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadRideData() async {
+    try {
+      setState(() {
+        _isLoadingRideData = true;
+      });
+
+      // Load data in parallel
+      final pendingRequestsFuture = _driverService.getPendingRideRequests();
+      final recentTripsFuture = _driverService.getDriverTripHistory(limit: 3);
+      final activeRideFuture = _driverService.getActiveRide();
+
+      final results = await Future.wait([
+        pendingRequestsFuture,
+        recentTripsFuture,
+        activeRideFuture,
+      ]);
+
+      if (mounted) {
+        setState(() {
+          _pendingRideRequests = results[0] as List<Map<String, dynamic>>;
+          _recentTrips = results[1] as List<Map<String, dynamic>>;
+          _activeRide = results[2] as Map<String, dynamic>?;
+          _isLoadingRideData = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading ride data: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingRideData = false;
         });
       }
     }
@@ -169,6 +215,18 @@ class _DriverHomePageState extends State<DriverHomePage> {
     Navigator.pushNamed(context, '/driver-trips');
   }
 
+  void _viewRideRequests() {
+    Navigator.pushNamed(context, '/driver-ride-requests');
+  }
+
+  void _viewActiveRide() {
+    Navigator.pushNamed(
+      context, 
+      '/driver-active-ride',
+      arguments: _activeRide != null ? {'rideRequestId': _activeRide!['id']} : null,
+    );
+  }
+
   void _viewProfile() {
     Navigator.pushNamed(context, '/profile');
   }
@@ -193,7 +251,8 @@ class _DriverHomePageState extends State<DriverHomePage> {
   void _handleBottomNavTap(int index) {
     switch (index) {
       case 1:
-        _viewEarnings();
+        // Messages tab
+        Navigator.pushNamed(context, AppRoutes.messages);
         break;
       case 2:
         _viewTrips();
@@ -264,6 +323,17 @@ class _DriverHomePageState extends State<DriverHomePage> {
         onForceLocationUpdate: _forceLocationUpdate,
         onMenuSelected: _handleMenuSelection,
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _loadRideData,
+        backgroundColor: Colors.blue,
+        child: _isLoadingRideData 
+            ? const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                strokeWidth: 2,
+              )
+            : const Icon(Icons.refresh),
+        tooltip: 'Refresh ride data',
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -284,7 +354,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
             // Hotspot Card
             InkWell(
               onTap: () {
-                Navigator.pushNamed(context, '/hotspot');
+                Navigator.pushNamed(context, AppRoutes.HotspotScreen);
               },
               borderRadius: BorderRadius.circular(16),
               child: Container(
@@ -386,29 +456,206 @@ class _DriverHomePageState extends State<DriverHomePage> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  DriverHomeWidgets.buildRecentTripItem(
-                    'Downtown to Airport',
-                    '2:30 PM - 3:15 PM',
-                    '4.9★',
-                    Colors.green,
-                  ),
-                  const Divider(height: 24),
-                  DriverHomeWidgets.buildRecentTripItem(
-                    'Mall to Residential Area',
-                    '1:45 PM - 2:10 PM',
-                    '5.0★',
-                    Colors.green,
-                  ),
-                  const Divider(height: 24),
-                  DriverHomeWidgets.buildRecentTripItem(
-                    'Office Complex to Hotel',
-                    '12:20 PM - 12:50 PM',
-                    '4.8★',
-                    Colors.green,
-                  ),
+                  _isLoadingRideData
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: CircularProgressIndicator(),
+                          ),
+                        )
+                      : _recentTrips.isEmpty
+                          ? const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Text(
+                                  'No trips found in your history',
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              ),
+                            )
+                          : Column(
+                              children: _recentTrips.map((trip) {
+                                final user = trip['users'] as Map<String, dynamic>;
+                                final userName = user['full_name'] ?? 'Unknown User';
+                                final pickupAddress = trip['pickup_address'] ?? 'Unknown pickup';
+                                final destinationAddress = trip['destination_address'] ?? 'Unknown destination';
+                                final route = '$pickupAddress to $destinationAddress';
+
+                                final createdAt = DateTime.parse(trip['created_at']);
+                                String timeString = DateFormat('h:mm a').format(createdAt);
+
+                                if (trip['completed_at'] != null) {
+                                  final completedAt = DateTime.parse(trip['completed_at']);
+                                  timeString += ' - ${DateFormat('h:mm a').format(completedAt)}';
+                                }
+
+                                return Column(
+                                  children: [
+                                    DriverHomeWidgets.buildRecentTripItem(
+                                      route,
+                                      timeString,
+                                      '★★★★★',
+                                      Colors.green,
+                                    ),
+                                    if (_recentTrips.indexOf(trip) < _recentTrips.length - 1)
+                                      const Divider(height: 24),
+                                  ],
+                                );
+                              }).toList(),
+                            ),
                 ],
               ),
             ),
+
+            // Pending Ride Requests
+            if (_pendingRideRequests.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Text(
+                              'Ride Requests',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '${_pendingRideRequests.length}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        TextButton(
+                          onPressed: _viewRideRequests,
+                          child: const Text('View All'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _viewRideRequests,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        'VIEW ${_pendingRideRequests.length} PENDING REQUESTS',
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            // Active Ride
+            if (_activeRide != null) ...[
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Text(
+                              'Active Ride',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.green,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                _activeRide!['status']?.toUpperCase() ?? 'ACTIVE',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _viewActiveRide,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'VIEW ACTIVE RIDE',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),

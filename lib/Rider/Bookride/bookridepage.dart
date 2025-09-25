@@ -7,6 +7,7 @@ import 'package:kabanza/routes.dart';
 import 'Route.dart';
 import 'bookridebackedService.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:math' as math;
 
 class BookRidePage extends StatefulWidget {
   final String? apiKey;
@@ -234,6 +235,7 @@ class _BookRidePageState extends State<BookRidePage> {
     ));
   }
 
+
   Future<void> _calculateRoute() async {
     if (_currentLocation == null || _destination == null) return;
 
@@ -242,9 +244,12 @@ class _BookRidePageState extends State<BookRidePage> {
       // Check if API key is provided
       if (widget.apiKey == null || widget.apiKey!.isEmpty) {
         print('No Google Maps API key provided');
-        _showSnackBar('Route calculation disabled: No API key');
+        _showSnackBar('Route calculation disabled: No API key configured');
+        _drawStraightLineRoute();
         return;
       }
+
+      print('Calculating route from ${_currentLocation} to ${_destination}');
 
       final route = await RouteService(apiKey: widget.apiKey!)
           .getRoute(origin: _currentLocation!, destination: _destination!);
@@ -266,17 +271,64 @@ class _BookRidePageState extends State<BookRidePage> {
             CameraUpdate.newLatLngBounds(route.bounds, 100)
         );
 
-        print('Route calculated successfully');
+        print('Route calculated successfully: ${route.distanceText}, ${route.durationText}');
+        _showSnackBar('Route found: ${route.distanceText}, ${route.durationText}');
       } else {
-        print('Could not calculate route');
-        _showSnackBar('Could not calculate route');
+        print('Could not calculate route - falling back to straight line');
+        _drawStraightLineRoute();
       }
     } catch (e) {
       print('Route calculation error: $e');
-      _showSnackBar('Route calculation error: $e');
+      String errorMessage = 'Route calculation error';
+
+      // Provide more specific error messages
+      if (e.toString().contains('REQUEST_DENIED')) {
+        errorMessage = 'Billing required for route calculation. Showing straight line.';
+      } else if (e.toString().contains('OVER_QUERY_LIMIT')) {
+        errorMessage = 'API quota exceeded. Showing straight line.';
+      } else if (e.toString().contains('NOT_FOUND') || e.toString().contains('ZERO_RESULTS')) {
+        errorMessage = 'No route found between these locations';
+      } else if (e.toString().contains('INVALID_REQUEST')) {
+        errorMessage = 'Invalid locations provided';
+      }
+
+      _showSnackBar(errorMessage);
+      _drawStraightLineRoute();
     } finally {
       setState(() => _loading = false);
     }
+  }
+
+  void _drawStraightLineRoute() {
+    if (_currentLocation == null || _destination == null) return;
+
+    setState(() {
+      _polylines = {
+        Polyline(
+          polylineId: const PolylineId('straight_line'),
+          points: [_currentLocation!, _destination!],
+          color: Colors.red.withOpacity(0.7),
+          width: 3,
+          patterns: [PatternItem.dash(20), PatternItem.gap(10)],
+        )
+      };
+    });
+
+    // Animate camera to show both points
+    final bounds = LatLngBounds(
+      southwest: LatLng(
+        math.min(_currentLocation!.latitude, _destination!.latitude),
+        math.min(_currentLocation!.longitude, _destination!.longitude),
+      ),
+      northeast: LatLng(
+        math.max(_currentLocation!.latitude, _destination!.latitude),
+        math.max(_currentLocation!.longitude, _destination!.longitude),
+      ),
+    );
+
+    _mapController?.animateCamera(
+        CameraUpdate.newLatLngBounds(bounds, 100)
+    );
   }
 
   Future<void> _bookRide() async {
@@ -470,9 +522,9 @@ class _BookRidePageState extends State<BookRidePage> {
 
   void _messageDriver(Map<String, dynamic> driver) {
     // Navigate to chat/message screen
-    Navigator.pushNamed(context, '/chat', arguments: {
-      'driverId': driver['id'],
-      'driverName': driver['full_name'],
+    Navigator.pushNamed(context, AppRoutes.chat, arguments: {
+      'otherUserId': driver['id'],
+      'otherUserName': driver['full_name'],
     });
   }
 
@@ -488,6 +540,10 @@ class _BookRidePageState extends State<BookRidePage> {
       appBar: AppBar(
         title: const Text('Book Ride'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.message_outlined),
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.messages),
+          ),
           IconButton(
             icon: const Icon(Icons.account_circle),
             onPressed: _navigateToProfile,

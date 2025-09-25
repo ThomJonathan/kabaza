@@ -53,5 +53,16 @@
     <string>Kabaza needs location access to show your current position and provide location-based ride services.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
     <string>Kabaza needs location access to show your current position and provide location-based ride services.</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>kabaza.deeplink</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>kabaza</string>
+            </array>
+        </dict>
+    </array>
 </dict>
 </plist>

@@ -165,7 +165,7 @@ class RideService {
     const double basePrice = 2.0; // Base fare
     const double pricePerKm = 1.5; // Price per kilometer
     final fare = basePrice + (distanceKm * pricePerKm);
-    return '\$${fare.toStringAsFixed(2)}';
+    return 'MK ${fare.toStringAsFixed(2)}';
   }
 
   // Helper method to notify selected driver
@@ -225,7 +225,7 @@ class RideService {
     try {
       final response = await supabase
           .from('ride_requests')
-          .select('*, users!inner(full_name, phone)')
+          .select('*, users!ride_requests_driver_id_fkey(full_name, phone)')
           .eq('id', rideRequestId)
           .single();
 

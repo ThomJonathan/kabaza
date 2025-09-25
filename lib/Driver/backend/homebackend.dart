@@ -6,6 +6,8 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:kabanza/utils/service.dart';
 import 'package:kabanza/utils/observer.dart';
 import 'package:kabanza/utils/LocationUpdater.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:geolocator/geolocator.dart';
 
 class DriverService with WidgetsBindingObserver {
   final SupabaseClient supabase;
@@ -458,4 +460,347 @@ class DriverService with WidgetsBindingObserver {
 
     print('Driver service cleanup completed');
   }
+
+  // Ride Request Methods
+
+  // Fetch pending ride requests for the driver
+  Future<List<Map<String, dynamic>>> getPendingRideRequests() async {
+    try {
+      print('Fetching pending ride requests...');
+
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Get all pending ride requests
+      final requests = await supabase
+          .from('ride_requests')
+          .select('*, users!ride_requests_user_id_fkey(full_name, phone, profile_url)')
+          .eq('status', 'pending')
+          .order('created_at', ascending: false);
+
+      print('Found ${requests.length} pending ride requests');
+      return List<Map<String, dynamic>>.from(requests);
+    } catch (e) {
+      print('Error fetching pending ride requests: $e');
+      _showUserFriendlyMessage('Failed to load ride requests', isError: true);
+      return [];
+    }
+  }
+
+  // Accept a ride request
+  Future<bool> acceptRideRequest(String rideRequestId) async {
+    try {
+      print('Accepting ride request: $rideRequestId');
+      onLoadingChanged?.call(true);
+
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Update ride request status
+      await supabase
+          .from('ride_requests')
+          .update({
+            'status': 'accepted',
+            'driver_id': user.id,
+            'accepted_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', rideRequestId)
+          .eq('status', 'pending');
+
+      // Update driver status
+      await supabase
+          .from('drivers')
+          .update({
+            'driver_status': 'on_trip',
+            'is_available': false,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', user.id);
+
+      onStatusChanged?.call(true, _getStatusDisplay('on_trip'));
+      _showUserFriendlyMessage('Ride request accepted successfully');
+      return true;
+    } catch (e) {
+      print('Error accepting ride request: $e');
+      _showUserFriendlyMessage('Failed to accept ride request', isError: true);
+      return false;
+    } finally {
+      onLoadingChanged?.call(false);
+    }
+  }
+
+  // Deny a ride request
+  Future<bool> denyRideRequest(String rideRequestId) async {
+    try {
+      print('Denying ride request: $rideRequestId');
+      onLoadingChanged?.call(true);
+
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Update ride request status
+      await supabase
+          .from('ride_requests')
+          .update({
+            'status': 'cancelled',
+            'cancelled_at': DateTime.now().toIso8601String(),
+            'cancelled_by': user.id,
+            'cancellation_reason': 'Denied by driver',
+          })
+          .eq('id', rideRequestId)
+          .eq('status', 'pending');
+
+      _showUserFriendlyMessage('Ride request denied');
+      return true;
+    } catch (e) {
+      print('Error denying ride request: $e');
+      _showUserFriendlyMessage('Failed to deny ride request', isError: true);
+      return false;
+    } finally {
+      onLoadingChanged?.call(false);
+    }
+  }
+
+  // Start a ride
+  Future<bool> startRide(String rideRequestId) async {
+    try {
+      print('Starting ride: $rideRequestId');
+      onLoadingChanged?.call(true);
+
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Update ride request status
+      await supabase
+          .from('ride_requests')
+          .update({
+            'status': 'in_progress',
+            'started_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', rideRequestId)
+          .eq('status', 'accepted')
+          .eq('driver_id', user.id);
+
+      _showUserFriendlyMessage('Ride started successfully');
+      return true;
+    } catch (e) {
+      print('Error starting ride: $e');
+      _showUserFriendlyMessage('Failed to start ride', isError: true);
+      return false;
+    } finally {
+      onLoadingChanged?.call(false);
+    }
+  }
+
+  // Complete a ride
+  Future<bool> completeRide(String rideRequestId) async {
+    try {
+      print('Completing ride: $rideRequestId');
+      onLoadingChanged?.call(true);
+
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Update ride request status
+      await supabase
+          .from('ride_requests')
+          .update({
+            'status': 'completed',
+            'completed_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', rideRequestId)
+          .eq('status', 'in_progress')
+          .eq('driver_id', user.id);
+
+      // Update driver status
+      await supabase
+          .from('drivers')
+          .update({
+            'driver_status': 'online',
+            'is_available': true,
+            'total_trips': supabase.rpc('increment', params: {'row_id': user.id, 'table_name': 'drivers', 'column_name': 'total_trips', 'amount': 1}),
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', user.id);
+
+      onStatusChanged?.call(true, _getStatusDisplay('online'));
+      _showUserFriendlyMessage('Ride completed successfully');
+      return true;
+    } catch (e) {
+      print('Error completing ride: $e');
+      _showUserFriendlyMessage('Failed to complete ride', isError: true);
+      return false;
+    } finally {
+      onLoadingChanged?.call(false);
+    }
+  }
+
+  // Get driver's trip history
+  Future<List<Map<String, dynamic>>> getDriverTripHistory({int limit = 0}) async {
+    try {
+      print('Fetching driver trip history...');
+
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      var query = supabase
+          .from('ride_requests')
+          .select('*, users!ride_requests_user_id_fkey(full_name, phone, profile_url)')
+          .eq('driver_id', user.id)
+          .eq('status', 'completed')
+          .order('created_at', ascending: false);
+
+      if (limit > 0) {
+        query = query.limit(limit);
+      }
+
+      final trips = await query;
+
+      print('Found ${trips.length} trips in history');
+      return List<Map<String, dynamic>>.from(trips);
+    } catch (e) {
+      print('Error fetching trip history: $e');
+      _showUserFriendlyMessage('Failed to load trip history', isError: true);
+      return [];
+    }
+  }
+
+  // Get active ride for driver
+  Future<Map<String, dynamic>?> getActiveRide() async {
+    try {
+      print('Checking for active ride...');
+
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      final activeRides = await supabase
+          .from('ride_requests')
+          .select('*, users!ride_requests_user_id_fkey(full_name, phone, profile_url)')
+          .eq('driver_id', user.id)
+          .or('status.eq.accepted,status.eq.in_progress')
+          .order('created_at', ascending: false)
+          .limit(1);
+
+      if (activeRides.isEmpty) {
+        print('No active ride found');
+        return null;
+      }
+
+      print('Active ride found');
+      return activeRides.first;
+    } catch (e) {
+      print('Error checking active ride: $e');
+      return null;
+    }
+  }
+
+  // Navigate to user location
+  Future<bool> navigateToUser(double latitude, double longitude) async {
+    try {
+      final url = 'https://www.google.com/maps/dir/?api=1&destination=$latitude,$longitude&travelmode=driving';
+      final uri = Uri.parse(url);
+
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        return true;
+      } else {
+        _showUserFriendlyMessage('Could not launch navigation', isError: true);
+        return false;
+      }
+    } catch (e) {
+      print('Navigation error: $e');
+      _showUserFriendlyMessage('Failed to open navigation', isError: true);
+      return false;
+    }
+  }
+
+  Future<Position?> getCurrentLocation() async { // Now 'Position' should be found
+    try {
+      print('Getting current location...');
+      onLoadingChanged?.call(true);
+
+      // Check if location services are enabled
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled(); // Geolocator should be found
+      if (!serviceEnabled) {
+        print('Location services are disabled');
+        return null;
+      }
+
+      // Check location permissions
+      LocationPermission permission = await Geolocator.checkPermission(); // LocationPermission and Geolocator should be found
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          print('Location permissions are denied');
+          return null;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        print('Location permissions are permanently denied');
+        return null;
+      }
+
+      // Get current position
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high, // LocationAccuracy should be found
+        timeLimit: const Duration(seconds: 15),
+      );
+
+      print('Current location: ${position.latitude}, ${position.longitude}');
+      return position;
+    } catch (e) {
+      print('Error getting current location: $e');
+      return null;
+    } finally {
+      onLoadingChanged?.call(false);
+    }
+  }
+  // Get hotspot data
+  // Get hotspot data - FIXED to show only riders
+  // Replace the existing getHotspotData method in homebackend.dart with this:
+
+  Future<List<Map<String, dynamic>>> getHotspotData() async {
+    try {
+      print('Getting hotspot data for currently active riders...');
+
+      // Query user_locations table with JOIN to users table, filtering for riders only
+      // This will get all currently active riders without time restriction
+      final locations = await supabase
+          .from('user_locations')
+          .select('''
+        latitude, 
+        longitude, 
+        last_updated,
+        users!inner(role, is_active)
+      ''')
+          .eq('users.role', 'rider')
+          .eq('users.is_active', true)
+          .order('last_updated', ascending: false);
+
+      print('Found ${locations.length} active rider locations');
+      return List<Map<String, dynamic>>.from(locations);
+    } catch (e) {
+      print('Error getting hotspot data: $e');
+      _showUserFriendlyMessage('Failed to load hotspot data', isError: true);
+      return [];
+    }
+  }
+
+
+
 }

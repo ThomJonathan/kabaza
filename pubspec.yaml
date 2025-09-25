@@ -7,7 +7,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <3.8.0'
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
   flutter:
@@ -24,12 +24,13 @@ dependencies:
   supabase_flutter: ^2.9.0
   mapbox_maps_flutter: ^2.8.0
   maps_toolkit: ^3.0.0
-  http: ^1.4.0
+  http: ^1.5.0
   google_polyline_algorithm: ^3.1.0
   image_picker: ^0.8.4+8
   cupertino_icons: ^1.0.8
-  paychangu_flutter: ^0.0.1
-
+  url_launcher: ^6.2.5
+  intl: ^0.19.0
+  paychangu_flutter: ^0.0.3
 dependency_overrides:
   geolocator_android: ^4.6.1
   geolocator_platform_interface: ^4.2.4
@@ -48,4 +49,3 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
-

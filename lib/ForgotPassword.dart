@@ -1,269 +1,236 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:kabanza/routes.dart';
+import 'dart:math';
 
-class ForgotPasswordScreen extends StatefulWidget {
-  const ForgotPasswordScreen({Key? key}) : super(key: key);
+class TokenBasedPasswordResetService {
+  final SupabaseClient _supabase = Supabase.instance.client;
 
-  @override
-  State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
-}
-
-class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
-  final _supabase = Supabase.instance.client;
-  bool _isLoading = false;
-  bool _emailSent = false;
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    super.dispose();
+  // Generate a 6-digit reset token
+  String _generateResetToken() {
+    final random = Random();
+    return (100000 + random.nextInt(900000)).toString();
   }
 
-  Future<void> _sendPasswordReset() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
+  // Send reset token via email
+  Future<Map<String, dynamic>> sendResetToken(String email) async {
     try {
-      // Check if user exists in your users table first
-      final userExists = await _supabase
+      // Validate email format
+      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
+        return {'success': false, 'message': 'Please enter a valid email address'};
+      }
+
+      // Check if user exists in your users table
+      final userResponse = await _supabase
           .from('users')
-          .select('email')
-          .eq('email', _emailController.text.trim())
+          .select('id, email, is_active')
+          .eq('email', email.toLowerCase().trim())
           .maybeSingle();
 
-      if (userExists == null) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No account found with this email address.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        return;
+      if (userResponse == null) {
+        return {'success': false, 'message': 'No account found with this email address'};
       }
 
-      // Send password reset email
-      await _supabase.auth.resetPasswordForEmail(
-        _emailController.text.trim(),
-        redirectTo: 'https://your-app-domain.com/reset-password', // Replace with your actual domain
-      );
 
-      setState(() {
-        _emailSent = true;
-      });
+      final token = _generateResetToken();
+      final expiresAt = DateTime.now().add(const Duration(minutes: 15));
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password reset email sent! Check your inbox.'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } on AuthException catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.message),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Unexpected error occurred'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
+      // Store token in database
+      try {
+        await _supabase.from('password_reset_tokens').upsert({
+          'email': email.toLowerCase().trim(),
+          'token': token,
+          'expires_at': expiresAt.toIso8601String(),
+          'used': false,
+          'created_at': DateTime.now().toIso8601String(),
         });
+      } catch (functionError) {
+        print('Edge function error: $functionError');
+        return {'success': false, 'message': 'Failed to send reset email. Please try again later.'};
       }
+
+      // Send email via Edge Function
+      try {
+        final response = await _supabase.functions.invoke(
+          'password-reset',
+          body: {
+            'action': 'send-reset-token',
+            'email': email.toLowerCase().trim(),
+            'token': token,
+          },
+        );
+
+        if (response.status == 200) {
+          final data = response.data;
+          if (data['success'] == true) {
+            return {
+              'success': true,
+              'message': 'Reset code sent to your email address!',
+              // Remove in production:
+              'debug_token': token, // For testing purposes only
+            };
+          } else {
+            return {'success': false, 'message': data['error'] ?? 'Failed to send reset email'};
+          }
+        } else {
+          throw Exception('HTTP ${response.status}');
+        }
+      } catch (functionError) {
+        print('Edge function error: $functionError');
+
+        // Fallback: Try Supabase built-in password reset
+        try {
+          await _supabase.auth.resetPasswordForEmail(
+            email,
+            redirectTo: 'yourapp://reset-password',
+          );
+
+          return {
+            'success': true,
+            'message': 'Reset instructions sent to your email! Please check your inbox.',
+            'fallback': true,
+          };
+        } catch (fallbackError) {
+          print('Fallback error: $fallbackError');
+          return {'success': false, 'message': 'Failed to send reset email. Please try again later.'};
+        }
+      }
+    } catch (error) {
+      print('Error in sendResetToken: $error');
+      return {'success': false, 'message': 'An unexpected error occurred. Please try again.'};
     }
   }
 
-  void _navigateToLogin() {
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      AppRoutes.login,
-          (route) => false,
-    );
+  // Verify token and update password
+  Future<Map<String, dynamic>> resetPasswordWithToken({
+    required String email,
+    required String token,
+    required String newPassword,
+  }) async {
+    try {
+      // Validate inputs
+      if (email.isEmpty || token.isEmpty || newPassword.isEmpty) {
+        return {'success': false, 'message': 'All fields are required'};
+      }
+
+      if (newPassword.length < 8) {
+        return {'success': false, 'message': 'Password must be at least 8 characters long'};
+      }
+
+      if (token.length != 6 || !RegExp(r'^\d{6}$').hasMatch(token)) {
+        return {'success': false, 'message': 'Please enter a valid 6-digit code'};
+      }
+
+      // Verify token exists and is valid
+      final tokenRecord = await _supabase
+          .from('password_reset_tokens')
+          .select('*')
+          .eq('email', email.toLowerCase().trim())
+          .eq('token', token.trim())
+          .eq('used', false)
+          .maybeSingle();
+
+      if (tokenRecord == null) {
+        return {'success': false, 'message': 'Invalid reset code. Please check and try again.'};
+      }
+
+      // Check if token is expired
+      final expiresAt = DateTime.parse(tokenRecord['expires_at']);
+      if (DateTime.now().isAfter(expiresAt)) {
+        // Clean up expired token
+        await _supabase
+            .from('password_reset_tokens')
+            .delete()
+            .eq('id', tokenRecord['id']);
+
+        return {'success': false, 'message': 'Reset code has expired. Please request a new one.'};
+      }
+
+      // Update password using Edge Function
+      try {
+        final response = await _supabase.functions.invoke(
+          'password-reset',
+          body: {
+            'action': 'update-password',
+            'email': email.toLowerCase().trim(),
+            'newPassword': newPassword,
+          },
+        );
+
+        if (response.status == 200) {
+          final data = response.data;
+          if (data['success'] == true) {
+            // Mark token as used
+            await _supabase
+                .from('password_reset_tokens')
+                .update({
+              'used': true,
+              'used_at': DateTime.now().toIso8601String()
+            })
+                .eq('id', tokenRecord['id']);
+
+            // Clean up other tokens for this email
+            await _cleanupUserTokens(email.toLowerCase().trim(), tokenRecord['id']);
+
+            return {'success': true, 'message': 'Password updated successfully!'};
+          } else {
+            return {'success': false, 'message': data['error'] ?? 'Failed to update password'};
+          }
+        } else {
+          throw Exception('HTTP ${response.status}');
+        }
+      } catch (functionError) {
+        print('Password update error: $functionError');
+        return {'success': false, 'message': 'Failed to update password. Please try again.'};
+      }
+
+    } catch (error) {
+      print('Error in resetPasswordWithToken: $error');
+      return {'success': false, 'message': 'An unexpected error occurred. Please try again.'};
+    }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        iconTheme: const IconThemeData(color: Colors.black),
-        title: const Text(
-          'Reset Password',
-          style: TextStyle(color: Colors.black),
-        ),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 20),
-                // App Title
-                Center(
-                  child: Text(
-                    'KABANZA',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).primaryColor,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 40),
+  // Helper method to clean up user tokens
+  Future<void> _cleanupUserTokens(String email, String currentTokenId) async {
+    try {
+      await _supabase
+          .from('password_reset_tokens')
+          .delete()
+          .eq('email', email)
+          .neq('id', currentTokenId);
+    } catch (error) {
+      print('Error cleaning up tokens: $error');
+    }
+  }
 
-                if (!_emailSent) ...[
-                  // Instructions
-                  Text(
-                    'Forgot Your Password?',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Enter your email address and we\'ll send you a link to reset your password.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey[600],
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 40),
+  // Clean up expired tokens (call this periodically)
+  Future<void> cleanupExpiredTokens() async {
+    try {
+      await _supabase
+          .from('password_reset_tokens')
+          .delete()
+          .lt('expires_at', DateTime.now().toIso8601String());
+      print('Expired tokens cleaned up');
+    } catch (error) {
+      print('Error cleaning up expired tokens: $error');
+    }
+  }
 
-                  // Email Field
-                  TextFormField(
-                    controller: _emailController,
-                    decoration: InputDecoration(
-                      labelText: 'Email Address',
-                      prefixIcon: const Icon(Icons.email_outlined),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your email';
-                      }
-                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                          .hasMatch(value.trim())) {
-                        return 'Please enter a valid email';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 24),
+  // Check if user has pending reset tokens
+  Future<bool> hasValidToken(String email) async {
+    try {
+      final result = await _supabase
+          .from('password_reset_tokens')
+          .select('expires_at')
+          .eq('email', email.toLowerCase().trim())
+          .eq('used', false)
+          .gt('expires_at', DateTime.now().toIso8601String())
+          .maybeSingle();
 
-                  // Send Reset Email Button
-                  ElevatedButton(
-                    onPressed: _isLoading ? null : _sendPasswordReset,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                      height: 24,
-                      width: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation(Colors.white),
-                      ),
-                    )
-                        : const Text(
-                      'Send Reset Email',
-                      style: TextStyle(fontSize: 16),
-                    ),
-                  ),
-                ] else ...[
-                  // Success message
-                  Icon(
-                    Icons.mark_email_read_outlined,
-                    size: 80,
-                    color: Colors.green,
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'Email Sent!',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'We\'ve sent a password reset link to ${_emailController.text.trim()}',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey[600],
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'Check your email and click the reset link to create a new password.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey[600],
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 40),
-
-                  // Resend email button
-                  TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _emailSent = false;
-                      });
-                    },
-                    child: const Text('Didn\'t receive email? Try again'),
-                  ),
-                ],
-
-                const SizedBox(height: 40),
-
-                // Back to Login
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Remember your password?',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    TextButton(
-                      onPressed: _navigateToLogin,
-                      child: const Text('Sign In'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+      return result != null;
+    } catch (error) {
+      print('Error checking valid token: $error');
+      return false;
+    }
   }
 }

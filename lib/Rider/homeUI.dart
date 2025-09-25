@@ -566,7 +566,7 @@ class RiderHomeUI {
           ),
         ),
         Text(
-          actualFare != null ? '\$${actualFare.toString()}' : 'N/A',
+          actualFare != null ? 'MK ${actualFare.toString()}' : 'N/A',
           style: const TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: 14,

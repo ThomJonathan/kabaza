@@ -211,7 +211,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   // App Title
                   Center(
                     child: Text(
-                      'KABANZA',
+                      'QUICKlift',
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,

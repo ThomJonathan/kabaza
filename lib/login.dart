@@ -148,7 +148,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 // App Title
                 Center(
                   child: Text(
-                    'KABANZA',
+                    'QUICKlift',
                     style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,

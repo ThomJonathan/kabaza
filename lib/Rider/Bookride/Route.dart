@@ -19,14 +19,24 @@ class RouteService {
         'origin': '${origin.latitude},${origin.longitude}',
         'destination': '${destination.latitude},${destination.longitude}',
         'key': apiKey,
+        'mode': 'driving', // Explicitly set mode
+        'avoid': '', // Remove any restrictions that might cause issues
       });
 
-      final response = await http.get(url).timeout(const Duration(seconds: 10));
+      print('Making request to: $url'); // Debug log
+
+      final response = await http.get(url).timeout(const Duration(seconds: 15));
+
+      print('Response status: ${response.statusCode}'); // Debug log
+      print('Response body: ${response.body}'); // Debug log
 
       if (response.statusCode == 200) {
-        return _parseRouteResponse(json.decode(response.body));
+        final data = json.decode(response.body);
+        return _parseRouteResponse(data);
+      } else {
+        print('HTTP Error: ${response.statusCode} - ${response.body}');
+        return null;
       }
-      return null;
     } catch (e) {
       print('Route error: $e');
       return null;
@@ -34,7 +44,37 @@ class RouteService {
   }
 
   RouteResult _parseRouteResponse(Map<String, dynamic> data) {
-    if (data['status'] != 'OK') throw Exception('Directions API error');
+    print('API Response Status: ${data['status']}'); // Debug log
+
+    // Handle different API response statuses
+    switch (data['status']) {
+      case 'OK':
+        break;
+      case 'NOT_FOUND':
+        throw Exception('No route found between the specified locations');
+      case 'ZERO_RESULTS':
+        throw Exception('No route could be found between the origin and destination');
+      case 'MAX_WAYPOINTS_EXCEEDED':
+        throw Exception('Too many waypoints provided');
+      case 'MAX_ROUTE_LENGTH_EXCEEDED':
+        throw Exception('Route is too long');
+      case 'INVALID_REQUEST':
+        throw Exception('Invalid request. Check your parameters.');
+      case 'OVER_DAILY_LIMIT':
+        throw Exception('API daily limit exceeded');
+      case 'OVER_QUERY_LIMIT':
+        throw Exception('API query limit exceeded');
+      case 'REQUEST_DENIED':
+        throw Exception('Request denied. Check your API key and permissions.');
+      case 'UNKNOWN_ERROR':
+        throw Exception('Unknown error occurred');
+      default:
+        throw Exception('API Error: ${data['status']} - ${data['error_message'] ?? 'Unknown error'}');
+    }
+
+    if (data['routes'] == null || (data['routes'] as List).isEmpty) {
+      throw Exception('No routes returned from API');
+    }
 
     final route = data['routes'][0];
     final leg = route['legs'][0];

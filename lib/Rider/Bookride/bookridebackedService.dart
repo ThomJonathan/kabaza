@@ -162,8 +162,8 @@ class RideService {
 
   // Helper method to calculate fare based on distance
   String _calculateFare(double distanceKm) {
-    const double basePrice = 2.0; // Base fare
-    const double pricePerKm = 1.5; // Price per kilometer
+    const double basePrice = 500.0; // Base fare
+    const double pricePerKm = 500; // Price per kilometer
     final fare = basePrice + (distanceKm * pricePerKm);
     return 'MK ${fare.toStringAsFixed(2)}';
   }

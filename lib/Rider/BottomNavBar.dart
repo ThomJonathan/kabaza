@@ -40,6 +40,9 @@ class RiderBottomNavigation extends StatelessWidget {
           activeIcon: Icon(Icons.person),
           label: 'Profile',
         ),
+        BottomNavigationBarItem(icon: Icon(Icons.wallet_outlined),
+            activeIcon: Icon(Icons.wallet),
+            label: 'Pay'),
       ],
     );
   }

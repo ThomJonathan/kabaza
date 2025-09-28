@@ -16,6 +16,7 @@ class AppRoutes {
   static const String HotspotScreen = '/hotspot-screen';
   static const String ProfileScreen = '/profile-screen';
   static const String TokenBasedPasswordResetService = '/token-based-reset';
+  static const String payment = '/payment';
 
   // Driver routes
   static const String driverTrips = '/driver-trips';

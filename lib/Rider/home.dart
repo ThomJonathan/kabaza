@@ -1,9 +1,12 @@
 // rider_home_page.dart
+import 'dart:ffi';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kabanza/utils/service.dart';
 import 'package:kabanza/utils/observer.dart';
 import 'package:kabanza/utils/LocationUpdater.dart';
+import '../PayChangu/PaymentScreen.dart';
 import '../routes.dart';
 import 'backend/homebackend.dart';
 import 'homeUI.dart';
@@ -249,6 +252,14 @@ class _RiderHomePageState extends State<RiderHomePage> {
   void _viewMessages() {
     Navigator.pushNamed(context, '/messages');
   }
+  void _payment(){
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const PaymentScreen(),
+      ),
+    );
+  }
 
   Future<void> _signOut() async {
     await _backend.signOut();
@@ -312,22 +323,29 @@ class _RiderHomePageState extends State<RiderHomePage> {
           onCancelRide: _cancelRide,
         ),
       ),
-      bottomNavigationBar: RiderBottomNavigation(
-        currentIndex: 0,
-        onTap: (index) {
-          switch (index) {
-            case 1:
-              _viewRideHistory();
-              break;
-            case 2:
-              _viewMessages();
-              break;
-            case 3:
-              _viewProfile();
-              break;
-          }
-        },
-      ),
+        // Update the bottomNavigationBar section in your home.dart file
+
+        bottomNavigationBar: RiderBottomNavigation(
+          currentIndex: 0,
+          onTap: (index) {
+            switch (index) {
+              case 1:
+                _viewRideHistory();
+                break;
+              case 2:
+                _viewMessages();
+                break;
+              case 3:
+                _viewProfile();
+                break;
+              case 4:  // Add this case for the payment tab
+                _payment();
+                break;
+            }
+          },
+        ),
+
+// Update the _payment method in your home.dart file
     );
   }
 }

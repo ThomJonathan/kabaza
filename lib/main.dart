@@ -21,6 +21,7 @@ import 'package:kabanza/Driver/active_ride.dart';
 import 'package:kabanza/messaging/conversations_page.dart';
 import 'package:kabanza/messaging/chat_page.dart';
 import 'package:kabanza/Driver/hotspot.dart';
+import 'PayChangu/payment_widget.dart';
 
 import 'package:kabanza/verifyResetscreen.dart';
 import'forgotpasswordScreen.dart';
@@ -125,7 +126,7 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Kabanza',
+      title: 'QUICKlift',
       navigatorKey: navigatorKey,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
@@ -149,7 +150,9 @@ class _MyAppState extends State<MyApp> {
         AppRoutes.driverTrips: (context) => const DriverTripsPage(),
         AppRoutes.driverRideRequests: (context) => const DriverRideRequestsPage(),
         AppRoutes.driverActiveRide: (context) => const DriverActiveRidePage(),
+
       },
+
       onGenerateRoute: (settings) {
         // Handle ride tracking route with arguments
         if (settings.name == AppRoutes.rideTracking) {

@@ -380,68 +380,110 @@ class _ChatPageState extends State<ChatPage> {
                 final isSending = m['is_sending'] == true;
                 final isDelivered = m['is_delivered'] == true;
 
-                return Align(
-                  alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 4),
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.75,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isMe
-                          ? (isSending ? Colors.blueAccent.withOpacity(0.7) : Colors.blueAccent)
-                          : Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          text,
-                          style: TextStyle(
-                            color: isMe ? Colors.white : Colors.black87,
-                          ),
-                        ),
-                        Row(
+                return GestureDetector(
+                  onLongPress: () async {
+                    // Show delete options
+                    final action = await showModalBottomSheet<String>(
+                      context: context,
+                      builder: (ctx) => SafeArea(
+                        child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (timestamp.isNotEmpty)
-                              Text(
-                                timestamp,
-                                style: TextStyle(
-                                  color: isMe ? Colors.white70 : Colors.black54,
-                                  fontSize: 12,
-                                ),
+                            ListTile(
+                              leading: const Icon(Icons.delete_outline),
+                              title: const Text('Delete for me'),
+                              onTap: () => Navigator.pop(ctx, 'self'),
+                            ),
+                            if (isMe)
+                              ListTile(
+                                leading: const Icon(Icons.delete_forever),
+                                title: const Text('Delete for everyone'),
+                                onTap: () => Navigator.pop(ctx, 'everyone'),
                               ),
-                            if (isMe) ...[
-                              const SizedBox(width: 4),
-                              if (isSending)
-                                const SizedBox(
-                                  width: 12,
-                                  height: 12,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 1,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
-                                  ),
-                                )
-                              else if (isDelivered)
-                                const Icon(
-                                  Icons.done,
-                                  size: 14,
-                                  color: Colors.white70,
-                                )
-                              else
-                                const Icon(
-                                  Icons.schedule,
-                                  size: 14,
-                                  color: Colors.white70,
-                                ),
-                            ],
+                            ListTile(
+                              leading: const Icon(Icons.cancel),
+                              title: const Text('Cancel'),
+                              onTap: () => Navigator.pop(ctx, null),
+                            ),
                           ],
                         ),
-                      ],
+                      ),
+                    );
+                    if (action == 'self') {
+                      await _svc.deleteMessageForSelf(m['id']);
+                      setState(() {
+                        _messages.removeAt(index);
+                      });
+                    } else if (action == 'everyone' && isMe) {
+                      await _svc.deleteMessageForEveryone(m['id']);
+                      setState(() {
+                        _messages.removeAt(index);
+                      });
+                    }
+                  },
+                  child: Align(
+                    alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                      constraints: BoxConstraints(
+                        maxWidth: MediaQuery.of(context).size.width * 0.75,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isMe
+                            ? (isSending ? Colors.blueAccent.withOpacity(0.7) : Colors.blueAccent)
+                            : Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            text,
+                            style: TextStyle(
+                              color: isMe ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (timestamp.isNotEmpty)
+                                Text(
+                                  timestamp,
+                                  style: TextStyle(
+                                    color: isMe ? Colors.white70 : Colors.black54,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              if (isMe) ...[
+                                const SizedBox(width: 4),
+                                if (isSending)
+                                  const SizedBox(
+                                    width: 12,
+                                    height: 12,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 1,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
+                                    ),
+                                  )
+                                else if (isDelivered)
+                                  const Icon(
+                                    Icons.done,
+                                    size: 14,
+                                    color: Colors.white70,
+                                  )
+                                else
+                                  const Icon(
+                                    Icons.schedule,
+                                    size: 14,
+                                    color: Colors.white70,
+                                  ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );

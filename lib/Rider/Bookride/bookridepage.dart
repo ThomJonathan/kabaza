@@ -8,6 +8,7 @@ import 'package:kabanza/routes.dart';
 import 'bookridebackedService.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math' as math;
+import 'dart:io';
 
 class BookRidePage extends StatefulWidget {
   final String? apiKey;
@@ -67,7 +68,13 @@ class _BookRidePageState extends State<BookRidePage> {
       // Check for nearby drivers after getting location
       await _checkNearbyDrivers();
     } catch (e) {
-      _showSnackBar('Location error: $e');
+      if (e is SocketException || e.toString().contains('SocketException')) {
+        _showSnackBar('No internet connection. Please check your network.');
+      } else if (e.toString().contains('Location services are disabled')) {
+        _showSnackBar('Location services are disabled. Please enable them.');
+      } else {
+        _showSnackBar('Location error: ${_friendlyError(e)}');
+      }
     } finally {
       setState(() => _loading = false);
     }
@@ -125,8 +132,11 @@ class _BookRidePageState extends State<BookRidePage> {
 
       _addDriverMarkers();
     } catch (e) {
-      print('Error checking nearby drivers: $e');
-      _showSnackBar('Error loading nearby drivers');
+      if (e is SocketException || e.toString().contains('SocketException')) {
+        _showSnackBar('No internet connection. Please check your network.');
+      } else {
+        _showSnackBar('Error loading nearby drivers: ${_friendlyError(e)}');
+      }
     } finally {
       setState(() => _checkingDrivers = false);
     }
@@ -200,7 +210,11 @@ class _BookRidePageState extends State<BookRidePage> {
         _showSnackBar('Destination not found');
       }
     } catch (e) {
-      _showSnackBar('Search error: $e');
+      if (e is SocketException || e.toString().contains('SocketException')) {
+        _showSnackBar('No internet connection. Please check your network.');
+      } else {
+        _showSnackBar('Search error: ${_friendlyError(e)}');
+      }
     } finally {
       setState(() => _loading = false);
     }
@@ -285,8 +299,11 @@ class _BookRidePageState extends State<BookRidePage> {
         _showSnackBar('Failed to create ride request. Please try again.');
       }
     } catch (e) {
-      print('Booking error: $e');
-      _showSnackBar('Booking error: $e');
+      if (e is SocketException || e.toString().contains('SocketException')) {
+        _showSnackBar('No internet connection. Please check your network.');
+      } else {
+        _showSnackBar('Booking error: ${_friendlyError(e)}');
+      }
     } finally {
       setState(() => _loading = false);
     }
@@ -430,6 +447,16 @@ class _BookRidePageState extends State<BookRidePage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
+  }
+
+  String _friendlyError(dynamic e) {
+    if (e is SocketException || e.toString().contains('SocketException')) {
+      return 'No internet connection.';
+    }
+    if (e.toString().contains('TimeoutException') || e.toString().contains('timeout')) {
+      return 'Network timeout. Please try again.';
+    }
+    return e.toString();
   }
 
   @override
@@ -695,3 +722,4 @@ class _BookRidePageState extends State<BookRidePage> {
     return 'Book Ride';
   }
 }
+

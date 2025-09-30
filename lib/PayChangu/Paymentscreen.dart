@@ -173,7 +173,8 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
     });
 
     try {
-      final expectedAmount = (widget.fareAmount * 100).round();
+      // FIX: Use MWK as expectedAmount, not MWK * 100
+      final expectedAmount = widget.fareAmount.round();
 
       final success = await _paymentService.pollAndUpdateRidePayment(
         rideId: widget.rideId,

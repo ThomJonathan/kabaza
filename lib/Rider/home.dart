@@ -1,4 +1,5 @@
 import 'dart:ffi';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -77,11 +78,11 @@ class _RiderHomePageState extends State<RiderHomePage> {
       onUserProfileLoaded: (profile) {
         setState(() {
           userProfile = profile;
-          _isLoading = false;
+          // Remove: _isLoading = false;
         });
       },
       onLoadingStateChanged: (isLoading) {
-        setState(() => _isLoading = isLoading);
+        // Remove: setState(() => _isLoading = isLoading);
       },
       onLocationLoadingStateChanged: (isLocationLoading) {
         setState(() => _isLocationLoading = isLocationLoading);
@@ -98,9 +99,14 @@ class _RiderHomePageState extends State<RiderHomePage> {
   }
 
   Future<void> _loadRideData() async {
-    await _loadCurrentRideRequest();
-    await _loadRecentTrips();
+    setState(() => _isLoading = true);
+    await Future.wait([
+      _loadCurrentRideRequest(),
+      _loadRecentTrips(),
+    ]);
+    setState(() => _isLoading = false);
   }
+
   Future<void> _loadCurrentRideRequest() async {
     try {
       final userId = AppAuthManager.getCurrentUserId();
@@ -127,7 +133,11 @@ class _RiderHomePageState extends State<RiderHomePage> {
         });
       }
     } catch (e) {
-      print('Error loading current ride request: $e');
+      if (e is SocketException || e.toString().contains('SocketException')) {
+        _showErrorSnackBar('No internet connection. Please check your network.');
+      } else {
+        _showErrorSnackBar('Error loading current ride request.');
+      }
     }
   }
 
@@ -160,7 +170,11 @@ class _RiderHomePageState extends State<RiderHomePage> {
         recentTrips = List<Map<String, dynamic>>.from(response);
       });
     } catch (e) {
-      print('Error loading recent trips: $e');
+      if (e is SocketException || e.toString().contains('SocketException')) {
+        _showErrorSnackBar('No internet connection. Please check your network.');
+      } else {
+        _showErrorSnackBar('Error loading recent trips.');
+      }
     }
   }
 
@@ -192,7 +206,11 @@ class _RiderHomePageState extends State<RiderHomePage> {
         currentRideRequest = null;
       });
     } catch (e) {
-      _showErrorSnackBar('Failed to mark ride as completed: ${e.toString()}');
+      if (e is SocketException || e.toString().contains('SocketException')) {
+        _showErrorSnackBar('No internet connection. Please check your network.');
+      } else {
+        _showErrorSnackBar('Failed to mark ride as completed.');
+      }
     } finally {
       setState(() {
         _isUpdatingRideStatus = false;
@@ -252,7 +270,11 @@ class _RiderHomePageState extends State<RiderHomePage> {
         currentRideRequest = null;
       });
     } catch (e) {
-      _showErrorSnackBar('Failed to cancel ride: ${e.toString()}');
+      if (e is SocketException || e.toString().contains('SocketException')) {
+        _showErrorSnackBar('No internet connection. Please check your network.');
+      } else {
+        _showErrorSnackBar('Failed to cancel ride.');
+      }
     } finally {
       setState(() {
         _isUpdatingRideStatus = false;
@@ -283,7 +305,11 @@ class _RiderHomePageState extends State<RiderHomePage> {
         },
       ).then((_) => _loadRideData());  // Refresh after returning
     } catch (e) {
-      _showErrorSnackBar('Failed to start tracking: $e');
+      if (e is SocketException || e.toString().contains('SocketException')) {
+        _showErrorSnackBar('No internet connection. Please check your network.');
+      } else {
+        _showErrorSnackBar('Failed to start tracking.');
+      }
     }
   }
 
@@ -332,7 +358,11 @@ class _RiderHomePageState extends State<RiderHomePage> {
       // Refresh data after payment process completes
       await _loadRideData();
     } catch (e) {
-      _showErrorSnackBar('Failed to initiate payment: $e');
+      if (e is SocketException || e.toString().contains('SocketException')) {
+        _showErrorSnackBar('No internet connection. Please check your network.');
+      } else {
+        _showErrorSnackBar('Failed to initiate payment.');
+      }
     }
   }
 

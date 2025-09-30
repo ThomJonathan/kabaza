@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kabanza/AuthManager.dart';
 import 'package:intl/intl.dart';
 import 'package:kabanza/PayChangu/paymentHelper.dart';
+import 'dart:io';
 
 class RiderHistoryPage extends StatefulWidget {
   const RiderHistoryPage({Key? key}) : super(key: key);
@@ -52,8 +53,12 @@ class _RiderHistoryPageState extends State<RiderHistoryPage> {
         _rides = [];
         _isLoading = false;
       });
+      String msg = 'Failed to load ride history.';
+      if (e is SocketException || e.toString().contains('SocketException')) {
+        msg = 'No internet connection. Please check your network.';
+      }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load ride history: $e')),
+        SnackBar(content: Text(msg)),
       );
     }
   }
@@ -263,4 +268,3 @@ class _RiderHistoryPageState extends State<RiderHistoryPage> {
     );
   }
 }
-

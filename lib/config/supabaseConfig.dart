@@ -28,8 +28,15 @@ class SupabaseConfig {
       await testSupabaseConnection();
 
     } catch (e, stackTrace) {
+      String userMessage = 'An error occurred during initialization.';
+      if (e is SocketException || e.toString().contains('SocketException')) {
+        userMessage = 'No internet connection. Please check your network and try again.';
+      } else if (e.toString().contains('TimeoutException') || e.toString().contains('timeout')) {
+        userMessage = 'Network timeout. Please check your connection.';
+      }
       print('❌ Supabase initialization error: $e');
       print('📚 Stack trace: $stackTrace');
+      print('💡 $userMessage');
       rethrow;
     }
   }
@@ -52,9 +59,15 @@ class SupabaseConfig {
       print('✅ All network tests passed!\n');
 
     } catch (e, stackTrace) {
+      String userMessage = 'Network connectivity issue.';
+      if (e is SocketException || e.toString().contains('SocketException')) {
+        userMessage = 'No internet connection. Please check your network.';
+      } else if (e.toString().contains('TimeoutException') || e.toString().contains('timeout')) {
+        userMessage = 'Network timeout. Please check your connection.';
+      }
       print('❌ Network test failed: $e');
       print('📚 Network stack trace: $stackTrace');
-      print('💡 This suggests a network connectivity issue\n');
+      print('💡 $userMessage\n');
       // Don't rethrow here since this is just a test
     }
   }
@@ -92,19 +105,15 @@ class SupabaseConfig {
       print('✅ Supabase connection is working!');
 
     } catch (e, stackTrace) {
+      String userMessage = 'Supabase connection issue.';
+      if (e is SocketException || e.toString().contains('SocketException')) {
+        userMessage = 'No internet connection. Please check your network.';
+      } else if (e.toString().contains('TimeoutException') || e.toString().contains('timeout')) {
+        userMessage = 'Network timeout. Please check your connection.';
+      }
       print('❌ Supabase connection test failed: $e');
       print('📚 Supabase stack trace: $stackTrace');
-
-      // Additional error analysis
-      if (e.toString().contains('Operation not permitted')) {
-        print('💡 This is likely a macOS sandbox/permission issue');
-        print('💡 Check your entitlements files for network permissions');
-      } else if (e.toString().contains('Connection refused')) {
-        print('💡 This suggests a firewall or network blocking issue');
-      } else if (e.toString().contains('timeout')) {
-        print('💡 This suggests a slow network or blocked connection');
-      }
-
+      print('💡 $userMessage');
       rethrow;
     }
   }

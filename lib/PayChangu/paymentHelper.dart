@@ -110,15 +110,6 @@ class RidePaymentHelper {
     return '$currency ${amount.toStringAsFixed(2)}';
   }
 
-  /// Convert MWK to Tambala (cents)
-  static int mwkToTambala(double mwk) {
-    return (mwk * 100).round();
-  }
-
-  /// Convert Tambala to MWK
-  static double tambalaToMwk(int tambala) {
-    return tambala / 100.0;
-  }
 
   /// Show payment confirmation dialog
   static Future<bool?> showPaymentConfirmationDialog({

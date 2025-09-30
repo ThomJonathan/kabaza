@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -75,6 +76,13 @@ class _RideTrackingPageState extends State<RideTrackingPage> {
         Navigator.pop(context);
       }
     } catch (e) {
+      String msg = 'Failed to load ride. ';
+      if (e is SocketException || e.toString().contains('SocketException')) {
+        msg = 'No internet connection. Please check your network.';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg)),
+      );
       Navigator.pop(context);
     } finally {
       setState(() {
@@ -168,7 +176,12 @@ class _RideTrackingPageState extends State<RideTrackingPage> {
         _updateDriverLocation(LatLng(driverLat, driverLng));
       }
     } catch (e) {
-      // Handle error, e.g., show snackbar if needed
+      if (e is SocketException || e.toString().contains('SocketException')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No internet connection. Please check your network.')),
+        );
+      }
+      // else: silent fail, as location may not exist yet
     }
   }
 
@@ -231,8 +244,12 @@ class _RideTrackingPageState extends State<RideTrackingPage> {
 
       Navigator.pop(context);
     } catch (e) {
+      String msg = 'Cancellation failed.';
+      if (e is SocketException || e.toString().contains('SocketException')) {
+        msg = 'No internet connection. Please check your network.';
+      }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Cancellation failed: $e')),
+        SnackBar(content: Text(msg)),
       );
     }
   }

@@ -311,7 +311,7 @@ class PayChanguService {
             // Update ride payment status to paid
             await _supabase.from('ride_requests').update({
               'payment_status': 'paid',
-              'actual_fare': (verification.data.amount / 100).toDouble(),
+              'actual_fare': verification.data.amount.toDouble(), // FIX: No division by 100
             }).eq('id', rideId);
 
             print('Payment successful! Updated ride status.');
@@ -324,7 +324,7 @@ class PayChanguService {
               'payment_status': 'failed',
             }).eq('id', rideId);
 
-            throw PayChanguException('Payment amount mismatch. Expected ${expectedAmount / 100} MWK but received ${verification.data.amount / 100} MWK');
+            throw PayChanguException('Payment amount mismatch. Expected $expectedAmount MWK but received ${verification.data.amount} MWK');
           }
         } else if (verification.data.status == 'failed' ||
             verification.data.status == 'cancelled' ||

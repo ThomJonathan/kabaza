@@ -21,7 +21,8 @@ import 'package:kabanza/Driver/active_ride.dart';
 import 'package:kabanza/messaging/conversations_page.dart';
 import 'package:kabanza/messaging/chat_page.dart';
 import 'package:kabanza/Driver/hotspot.dart';
-import 'PayChangu/payment_widget.dart';
+import 'package:kabanza/ProfileScreen.dart'; // <-- Add this import
+import 'package:kabanza/Rider/riderHistory.dart'; // <-- Add this import
 
 import 'package:kabanza/verifyResetscreen.dart';
 import'forgotpasswordScreen.dart';
@@ -139,18 +140,19 @@ class _MyAppState extends State<MyApp> {
         AppRoutes.signUp: (context) => const SignupScreen(),
         AppRoutes.riderHome: (context) => const RiderHomePage(),
         AppRoutes.driverHome: (context) => const DriverHomePage(),
-
         AppRoutes.forgotPassword: (context) => const ForgotPasswordScreen(),
         AppRoutes.HotspotScreen: (context) => const HotspotScreen(),
         '/change-password': (context) => const ChangePasswordScreen(),
         AppRoutes.bookRide: (context) => const BookRidePage(apiKey: 'AIzaSyAwBZT0LlveffJVjzRXoRGPOfKsrrm8Y-o'),
         AppRoutes.vehicleDetails: (context) => const VehicleDetailsScreen(),
         AppRoutes.messages: (context) => const ConversationsPage(),
+        AppRoutes.profile: (context) => const ProfileScreen(),
         // Driver routes
         AppRoutes.driverTrips: (context) => const DriverTripsPage(),
         AppRoutes.driverRideRequests: (context) => const DriverRideRequestsPage(),
         AppRoutes.driverActiveRide: (context) => const DriverActiveRidePage(),
-
+        // Rider trip history route
+        AppRoutes.rideHistory: (context) => const RiderHistoryPage(), // <-- Add this line
       },
 
       onGenerateRoute: (settings) {

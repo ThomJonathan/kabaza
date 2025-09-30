@@ -4,7 +4,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:kabanza/AuthManager.dart';
 import 'package:kabanza/routes.dart';
-import 'Route.dart';
+
 import 'bookridebackedService.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math' as math;
@@ -39,20 +39,7 @@ class _BookRidePageState extends State<BookRidePage> {
   void initState() {
     super.initState();
     _rideService = RideService(supabase);
-    _verifyAuth();
     _getCurrentLocation();
-  }
-
-  void _verifyAuth() {
-    if (!AppAuthManager.isUserDataAvailable()) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          AppRoutes.login,
-              (route) => false,
-        );
-      });
-    }
   }
 
   void _navigateToProfile() {
@@ -209,7 +196,6 @@ class _BookRidePageState extends State<BookRidePage> {
         });
 
         _updateDestinationMarker();
-        await _calculateRoute();
       } else {
         _showSnackBar('Destination not found');
       }
@@ -236,100 +222,6 @@ class _BookRidePageState extends State<BookRidePage> {
   }
 
 
-  Future<void> _calculateRoute() async {
-    if (_currentLocation == null || _destination == null) return;
-
-    setState(() => _loading = true);
-    try {
-      // Check if API key is provided
-      if (widget.apiKey == null || widget.apiKey!.isEmpty) {
-        print('No Google Maps API key provided');
-        _showSnackBar('Route calculation disabled: No API key configured');
-        _drawStraightLineRoute();
-        return;
-      }
-
-      print('Calculating route from ${_currentLocation} to ${_destination}');
-
-      final route = await RouteService(apiKey: widget.apiKey!)
-          .getRoute(origin: _currentLocation!, destination: _destination!);
-
-      if (route != null) {
-        setState(() {
-          _polylines = {
-            Polyline(
-              polylineId: const PolylineId('route'),
-              points: route.polylinePoints,
-              color: Colors.blue,
-              width: 4,
-            )
-          };
-        });
-
-        // Animate camera to show both pickup and destination
-        _mapController?.animateCamera(
-            CameraUpdate.newLatLngBounds(route.bounds, 100)
-        );
-
-        print('Route calculated successfully: ${route.distanceText}, ${route.durationText}');
-        _showSnackBar('Route found: ${route.distanceText}, ${route.durationText}');
-      } else {
-        print('Could not calculate route - falling back to straight line');
-        _drawStraightLineRoute();
-      }
-    } catch (e) {
-      print('Route calculation error: $e');
-      String errorMessage = 'Route calculation error';
-
-      // Provide more specific error messages
-      if (e.toString().contains('REQUEST_DENIED')) {
-        errorMessage = 'Billing required for route calculation. Showing straight line.';
-      } else if (e.toString().contains('OVER_QUERY_LIMIT')) {
-        errorMessage = 'API quota exceeded. Showing straight line.';
-      } else if (e.toString().contains('NOT_FOUND') || e.toString().contains('ZERO_RESULTS')) {
-        errorMessage = 'No route found between these locations';
-      } else if (e.toString().contains('INVALID_REQUEST')) {
-        errorMessage = 'Invalid locations provided';
-      }
-
-      _showSnackBar(errorMessage);
-      _drawStraightLineRoute();
-    } finally {
-      setState(() => _loading = false);
-    }
-  }
-
-  void _drawStraightLineRoute() {
-    if (_currentLocation == null || _destination == null) return;
-
-    setState(() {
-      _polylines = {
-        Polyline(
-          polylineId: const PolylineId('straight_line'),
-          points: [_currentLocation!, _destination!],
-          color: Colors.red.withOpacity(0.7),
-          width: 3,
-          patterns: [PatternItem.dash(20), PatternItem.gap(10)],
-        )
-      };
-    });
-
-    // Animate camera to show both points
-    final bounds = LatLngBounds(
-      southwest: LatLng(
-        math.min(_currentLocation!.latitude, _destination!.latitude),
-        math.min(_currentLocation!.longitude, _destination!.longitude),
-      ),
-      northeast: LatLng(
-        math.max(_currentLocation!.latitude, _destination!.latitude),
-        math.max(_currentLocation!.longitude, _destination!.longitude),
-      ),
-    );
-
-    _mapController?.animateCamera(
-        CameraUpdate.newLatLngBounds(bounds, 100)
-    );
-  }
 
   Future<void> _bookRide() async {
     // Validation checks
@@ -338,8 +230,14 @@ class _BookRidePageState extends State<BookRidePage> {
       return;
     }
 
+    // Check auth only here
     if (!AppAuthManager.isUserDataAvailable()) {
       _showSnackBar('Please login to book a ride');
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.login,
+        (route) => false,
+      );
       return;
     }
 

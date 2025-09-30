@@ -17,6 +17,7 @@ class AppRoutes {
   static const String ProfileScreen = '/profile-screen';
   static const String TokenBasedPasswordResetService = '/token-based-reset';
   static const String payment = '/payment';
+  static const String profile = '/profile';
 
   // Driver routes
   static const String driverTrips = '/driver-trips';
@@ -25,4 +26,5 @@ class AppRoutes {
 
   // Token-based password reset
   static const String verifyResetCode = '/verify-reset-code';
+  static const String rideHistory = '/ride-history';
 }

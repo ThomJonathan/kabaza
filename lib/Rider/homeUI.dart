@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:kabanza/utils/LocationUpdater.dart';
 import 'package:intl/intl.dart';
+import 'package:kabanza/PayChangu/paymentHelper.dart';
 
 class RiderHomeUI {
   static AppBar buildAppBar({
@@ -13,6 +14,7 @@ class RiderHomeUI {
     required VoidCallback onProfileSelected,
     required VoidCallback onSettingsSelected,
     required VoidCallback onLogoutSelected,
+    required VoidCallback onRefresh, // <-- Add this line
   }) {
     return AppBar(
       backgroundColor: Colors.white,
@@ -62,6 +64,11 @@ class RiderHomeUI {
           tooltip: locationUpdater.isRunning
               ? 'Location sharing active - Tap to update'
               : 'Location sharing inactive - Tap to start',
+        ),
+        IconButton(
+          icon: const Icon(Icons.refresh, color: Colors.black87), // <-- Refresh icon
+          onPressed: onRefresh, // <-- Call refresh
+          tooltip: 'Refresh',
         ),
         IconButton(
           icon: const Icon(Icons.notifications_outlined, color: Colors.black87),
@@ -138,6 +145,8 @@ class RiderHomeUI {
     required VoidCallback onViewRideHistory,
     required VoidCallback onMarkRideCompleted,
     required VoidCallback onCancelRide,
+    required Future<void> Function() onTrackCurrentRide,
+    required VoidCallback onPayRide, // <-- Add this line
   }) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -152,6 +161,8 @@ class RiderHomeUI {
               isUpdatingRideStatus: isUpdatingRideStatus,
               onMarkRideCompleted: onMarkRideCompleted,
               onCancelRide: onCancelRide,
+              onPayRide: onPayRide,
+              onTrackCurrentRide: onTrackCurrentRide, // <-- Pass down
             ),
             const SizedBox(height: 20),
           ],
@@ -182,13 +193,18 @@ class RiderHomeUI {
     required bool isUpdatingRideStatus,
     required VoidCallback onMarkRideCompleted,
     required VoidCallback onCancelRide,
+    required VoidCallback onPayRide,
+    required Future<void> Function() onTrackCurrentRide, // <-- Add this line
   }) {
     final status = currentRideRequest['status'] as String;
+    final paymentStatus = currentRideRequest['payment_status'] as String?; // <-- Add this line
     final driverData = currentRideRequest['driver'] as Map<String, dynamic>?;
     final createdAt = currentRideRequest['created_at'] as String?;
     final estimatedDistance = currentRideRequest['estimated_distance'] as String?;
     final pickupAddress = currentRideRequest['pickup_address'] as String?;
     final destinationAddress = currentRideRequest['destination_address'] as String?;
+    final estimatedFare = currentRideRequest['estimated_fare']?.toString();
+    final actualFare = currentRideRequest['actual_fare']?.toString();
 
     Color statusColor;
     IconData statusIcon;
@@ -299,7 +315,30 @@ class RiderHomeUI {
               label: 'Requested At',
               value: _formatDateTime(createdAt),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
+          ],
+          if (actualFare != null && actualFare != 'null') ...[
+            _buildInfoRow(
+              icon: Icons.attach_money,
+              label: 'Fare',
+              value: 'MK $actualFare',
+            ),
+            const SizedBox(height: 8),
+          ] else if (estimatedFare != null && estimatedFare != 'null') ...[
+            _buildInfoRow(
+              icon: Icons.attach_money,
+              label: 'Estimated Fare',
+              value: estimatedFare,
+            ),
+            const SizedBox(height: 8),
+          ],
+
+          // Payment status indicator
+          if (paymentStatus != null) ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: RidePaymentHelper.buildPaymentStatusWidget(paymentStatus),
+            ),
           ],
 
           // Action Buttons
@@ -345,7 +384,38 @@ class RiderHomeUI {
                   ),
                 ),
               ],
+              // Show Pay button only if not paid
+              if ((status == 'accepted' || status == 'in_progress') && paymentStatus != 'paid') ...[
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: isUpdatingRideStatus ? null : onPayRide,
+                    icon: const Icon(Icons.payment),
+                    label: const Text('Pay Ride'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ],
             ],
+          ),
+          const SizedBox(height: 12),
+          // --- Add Track Ride Button ---
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: onTrackCurrentRide,
+              icon: const Icon(Icons.map_outlined),
+              label: const Text('Track Ride'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurple,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
           ),
         ],
       ),
@@ -516,6 +586,7 @@ class RiderHomeUI {
     final destinationAddress = trip['destination_address'] as String?;
     final completedAt = trip['completed_at'] as String?;
     final actualFare = trip['actual_fare'];
+    final paymentStatus = trip['payment_status'] as String?; // <-- Add this line
     final driverData = trip['driver'] as Map<String, dynamic>?;
 
     String route = 'Unknown Route';
@@ -561,6 +632,11 @@ class RiderHomeUI {
                     color: Colors.grey[600],
                     fontSize: 11,
                   ),
+                ),
+              if (paymentStatus != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: RidePaymentHelper.buildPaymentStatusWidget(paymentStatus),
                 ),
             ],
           ),

@@ -5,7 +5,7 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>$(DEVELOPMENT_LANGUAGE)</string>
     <key>CFBundleDisplayName</key>
-    <string>Kabaza</string>
+    <string>QUICklift</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>kabaza</string>
+    <string>QUICklift</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -50,17 +50,17 @@
 
     <!-- Location Permission Keys - ADD THESE -->
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>Kabaza needs location access to show your current position and provide location-based ride services.</string>
+    <string>kabanza needs location access to show your current position and provide location-based ride services.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>Kabaza needs location access to show your current position and provide location-based ride services.</string>
+    <string>kabanza needs location access to show your current position and provide location-based ride services.</string>
     <key>CFBundleURLTypes</key>
     <array>
         <dict>
             <key>CFBundleURLName</key>
-            <string>kabaza.deeplink</string>
+            <string>QUICKlift.deeplink</string>
             <key>CFBundleURLSchemes</key>
             <array>
-                <string>kabaza</string>
+                <string>QUICKlift</string>
             </array>
         </dict>
     </array>

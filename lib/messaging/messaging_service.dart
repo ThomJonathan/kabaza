@@ -43,7 +43,7 @@ class MessagingService {
     if (me == null) return [];
 
     try {
-      // Only fetch messages not deleted for this user
+      // Only fetch messages where user is sender or receiver (no soft-delete filter)
       final rows = await supabase
           .from('messages')
           .select('''
@@ -52,7 +52,6 @@ class MessagingService {
             receiver:users!messages_receiver_id_fkey(id, full_name, profile_url)
           ''')
           .or('sender_id.eq.$me,receiver_id.eq.$me')
-          .or('deleted_for_user_ids.is.null,deleted_for_user_ids.not.cs.{$me}')
           .order('created_at', ascending: false);
 
       print('Fetched ${rows.length} messages for conversation list');
@@ -140,12 +139,11 @@ class MessagingService {
     final me = currentUserId;
     if (me == null) throw Exception('Not authenticated');
     try {
-      // Only fetch messages not deleted for this user
+      // Only fetch messages by conversation (no soft-delete filter)
       final rows = await supabase
           .from('messages')
           .select('*')
           .eq('conversation_id', conversationId)
-          .or('deleted_for_user_ids.is.null,deleted_for_user_ids.not.cs.{$me}')
           .order('created_at', ascending: true);
 
       print('Fetched messages from database: ${rows.length} messages');
@@ -216,39 +214,24 @@ class MessagingService {
     await deleteConversation(convId);
   }
 
-  // Soft-delete conversation for current user only
+  // Hard-delete all messages in conversation
   Future<void> deleteConversation(String conversationId) async {
     final me = currentUserId;
     if (me == null) throw Exception('Not authenticated');
-    try {
-      // Add current user to deleted_for_user_ids for all messages in this conversation
-      await supabase.rpc('delete_conversation_for_user', params: {
-        'conversation_id': conversationId,
-        'user_id': me,
-      });
-    } catch (e) {
-      print('Error deleting conversation: $e');
-      throw e;
-    }
+    await supabase
+        .from('messages')
+        .delete()
+        .eq('conversation_id', conversationId);
   }
 
-  // Delete a single message for self
+  // Hard-delete a single message
   Future<void> deleteMessageForSelf(String messageId) async {
-    final me = currentUserId;
-    if (me == null) throw Exception('Not authenticated');
-    await supabase.rpc('delete_message_for_user', params: {
-      'message_id': messageId,
-      'user_id': me,
-    });
+    await supabase.from('messages').delete().eq('id', messageId);
   }
 
-  // Delete a single message for everyone (sender only)
+  // Hard-delete a single message for everyone (same as above)
   Future<void> deleteMessageForEveryone(String messageId) async {
-    final me = currentUserId;
-    if (me == null) throw Exception('Not authenticated');
-    await supabase.rpc('delete_message_for_everyone', params: {
-      'message_id': messageId,
-    });
+    await supabase.from('messages').delete().eq('id', messageId);
   }
 
   /// Creates a more reliable real-time subscription with enhanced error handling

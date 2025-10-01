@@ -169,32 +169,38 @@ class _RiderHistoryPageState extends State<RiderHistoryPage> {
             const SizedBox(height: 8),
             // Payment info
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Icon(Icons.payment, size: 16, color: Colors.grey),
                 const SizedBox(width: 4),
-                Text(
+                const Text(
                   'Payment: ',
-                  style: const TextStyle(fontSize: 14),
+                  style: TextStyle(fontSize: 14),
                 ),
-                RidePaymentHelper.buildPaymentStatusWidget(paymentStatus),
-                if (status == 'completed' && fare != null) ...[
-                  const SizedBox(width: 8),
-                  Text(
-                    'Amount: MWK ${fare.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green,
-                      fontSize: 14,
-                    ),
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      RidePaymentHelper.buildPaymentStatusWidget(paymentStatus),
+                      if (status == 'completed' && fare != null)
+                        Text(
+                          'Amount: MWK ${fare.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                            fontSize: 14,
+                          ),
+                        ),
+                      if (status == 'completed' &&
+                          paymentMethod != '-' &&
+                          paymentMethod.isNotEmpty)
+                        Text(
+                          'Paid Via $paymentMethod',
+                          style: const TextStyle(fontSize: 13, color: Colors.blue),
+                        ),
+                    ],
                   ),
-                  if (paymentMethod != '-' && paymentMethod.isNotEmpty) ...[
-                    const SizedBox(width: 8),
-                    Text(
-                      'via $paymentMethod',
-                      style: const TextStyle(fontSize: 13, color: Colors.blue),
-                    ),
-                  ],
-                ],
+                ),
               ],
             ),
             // Special instructions
@@ -225,7 +231,9 @@ class _RiderHistoryPageState extends State<RiderHistoryPage> {
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
-                        'Reason: ${ride['cancellation_reason']}',
+                        ride['cancellation_reason'] == 'Cancelled by rider'
+                            ? 'You cancelled it'
+                            : 'Reason: ${ride['cancellation_reason']}',
                         style: const TextStyle(fontSize: 13, color: Colors.red),
                       ),
                     ),

@@ -33,6 +33,12 @@ android {
         versionName = flutter.versionName
     }
 
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            outputFileName = "QUICKlift.apk"
+        }
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.

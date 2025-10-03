@@ -288,13 +288,12 @@ class _BookRidePageState extends State<BookRidePage> {
       if (response != null) {
         _showSnackBar('Ride request created successfully!');
 
-        // Navigate to ride tracking page
-        Navigator.pushNamed(context, AppRoutes.rideTracking, arguments: {
-          'rideRequestId': response['id'],
-          'pickup': _currentLocation!,
-          'destination': _destination!,
-          'driver': _selectedDriver!,
-        });
+        // Navigate to driver home page instead of ride tracking page
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          AppRoutes.driverHome,
+          (route) => false,
+        );
       } else {
         _showSnackBar('Failed to create ride request. Please try again.');
       }

@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:kabanza/AuthManager.dart';
 
 class RideService {
@@ -26,53 +27,82 @@ class RideService {
         return [];
       }
 
-      // First, update/insert the current user's location
+      // First, update the current user's location with address
       await _updateUserLocation(lat, lng);
+
+      print('Calling get_nearby_drivers_with_location for user: $currentUserId');
 
       // Execute the nearby drivers query
       final response = await supabase.rpc('get_nearby_drivers_with_location', params: {
         'current_user_id': currentUserId,
       });
 
-      print('Nearby drivers response: $response'); // Debug log
-      return List<Map<String, dynamic>>.from(response);
+      print('Nearby drivers response: $response');
+
+      // Validate response
+      if (response == null) {
+        print('Null response from database function');
+        return [];
+      }
+
+      final drivers = List<Map<String, dynamic>>.from(response);
+      print('Found ${drivers.length} online and available drivers');
+
+      return drivers;
     } catch (e) {
-      print('Drivers error: $e');
+      print('Error getting nearby drivers: $e');
+      print('Stack trace: ${StackTrace.current}');
       return [];
     }
   }
 
-  // Helper method to update user location
+  // Helper method to update user location with address
   Future<void> _updateUserLocation(double lat, double lng) async {
     try {
       final currentUserId = AppAuthManager.getCurrentUserId();
       if (currentUserId == null) return;
 
+      // Get address from coordinates
+      String? address;
+      try {
+        List<Placemark> placemarks = await placemarkFromCoordinates(lat, lng)
+            .timeout(Duration(seconds: 5));
+
+        if (placemarks.isNotEmpty) {
+          Placemark place = placemarks[0];
+          List<String> addressParts = [];
+
+          if (place.street != null && place.street!.isNotEmpty) {
+            addressParts.add(place.street!);
+          }
+          if (place.locality != null && place.locality!.isNotEmpty) {
+            addressParts.add(place.locality!);
+          }
+          if (place.administrativeArea != null && place.administrativeArea!.isNotEmpty) {
+            addressParts.add(place.administrativeArea!);
+          }
+          if (place.country != null && place.country!.isNotEmpty) {
+            addressParts.add(place.country!);
+          }
+
+          address = addressParts.join(', ');
+        }
+      } catch (e) {
+        print('Geocoding failed for rider location: $e');
+      }
+
+      // Update with address included
       await supabase.from('user_locations').upsert({
         'user_id': currentUserId,
         'latitude': lat,
         'longitude': lng,
-        'last_updated': DateTime.now().toIso8601String(),
-        'is_sharing_location': true,
-      });
+        'address': address,
+        'last_updated': DateTime.now().toUtc().toIso8601String(),
+      }, onConflict: 'user_id');
+
+      print('Rider location updated with address: $address');
     } catch (e) {
       print('Location update error: $e');
-    }
-  }
-
-  // Alternative method using direct coordinates
-  Future<List<Map<String, dynamic>>> getNearbyDriversByCoordinates(double lat, double lng) async {
-    try {
-      final response = await supabase.rpc('get_nearby_drivers_by_coordinates', params: {
-        'user_lat': lat,
-        'user_lng': lng,
-        'radius_km': 5.0,
-      });
-
-      return List<Map<String, dynamic>>.from(response);
-    } catch (e) {
-      print('Direct coordinate query error: $e');
-      return [];
     }
   }
 
@@ -88,25 +118,24 @@ class RideService {
   }) async {
     try {
       final currentUserId = AppAuthManager.getCurrentUserId();
-      final userName = AppAuthManager.getUserName();
-      final userEmail = AppAuthManager.getUserEmail();
 
       if (currentUserId == null) {
         print('No user ID available for ride request');
         return null;
       }
 
-      // Validate driver exists if driverId is provided
+      // Validate driver exists and is available
       if (driverId != null) {
         final driverCheck = await supabase
-            .from('users')
-            .select('id, role')
-            .eq('id', driverId)
-            .eq('role', 'driver')
+            .from('drivers')
+            .select('user_id, driver_status, is_available')
+            .eq('user_id', driverId)
+            .eq('driver_status', 'online')
+            .eq('is_available', true)
             .maybeSingle();
 
         if (driverCheck == null) {
-          print('Invalid driver ID: $driverId');
+          print('Driver is not available or not online: $driverId');
           return null;
         }
       }
@@ -129,10 +158,10 @@ class RideService {
         'estimated_fare': _calculateFare(estimatedDistance),
         'status': 'pending',
         'special_instructions': specialInstructions,
-        'created_at': DateTime.now().toIso8601String(),
+        'created_at': DateTime.now().toUtc().toIso8601String(),
       };
 
-      print('Creating ride request: $rideData'); // Debug log
+      print('Creating ride request: $rideData');
 
       final response = await supabase
           .from('ride_requests')
@@ -140,9 +169,9 @@ class RideService {
           .select()
           .single();
 
-      print('Ride request created: $response'); // Debug log
+      print('Ride request created successfully: ${response['id']}');
 
-      // If a specific driver is selected, notify them
+      // Notify the selected driver
       if (driverId != null) {
         await _notifyDriver(driverId, response['id']);
       }
@@ -171,15 +200,15 @@ class RideService {
   // Helper method to notify selected driver
   Future<void> _notifyDriver(String driverId, String rideRequestId) async {
     try {
-      // Create a database notification
       await supabase.from('notifications').insert({
         'user_id': driverId,
         'type': 'ride_request',
         'title': 'New Ride Request',
         'message': 'You have a new ride request',
         'data': {'ride_request_id': rideRequestId},
-        'created_at': DateTime.now().toIso8601String(),
+        'created_at': DateTime.now().toUtc().toIso8601String(),
       });
+      print('Driver notified: $driverId');
     } catch (e) {
       print('Driver notification error: $e');
     }
@@ -196,8 +225,7 @@ class RideService {
     final drivers = await getNearbyDrivers(lat, lng);
     if (drivers.isEmpty) return null;
 
-    // Sort by distance and return the closest one
-    drivers.sort((a, b) => (a['distance_km'] as double).compareTo(b['distance_km'] as double));
+    // Already sorted by distance in SQL function
     return drivers.first;
   }
 
@@ -209,7 +237,8 @@ class RideService {
 
       await supabase.from('ride_requests').update({
         'status': 'cancelled',
-        'cancelled_at': DateTime.now().toIso8601String(),
+        'cancelled_at': DateTime.now().toUtc().toIso8601String(),
+        'cancelled_by': currentUserId,
         'cancellation_reason': reason,
       }).eq('id', rideRequestId).eq('user_id', currentUserId);
 
@@ -225,7 +254,7 @@ class RideService {
     try {
       final response = await supabase
           .from('ride_requests')
-          .select('*, users!ride_requests_driver_id_fkey(full_name, phone)')
+          .select('*, drivers!ride_requests_driver_id_fkey(*, users!drivers_user_id_fkey(full_name, phone, profile_url))')
           .eq('id', rideRequestId)
           .single();
 
@@ -244,9 +273,10 @@ class RideService {
 
       final response = await supabase
           .from('ride_requests')
-          .select('*')
+          .select('*, drivers!ride_requests_driver_id_fkey(*, users!drivers_user_id_fkey(full_name, phone))')
           .eq('user_id', currentUserId)
-          .order('created_at', ascending: false);
+          .order('created_at', ascending: false)
+          .limit(50);
 
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
@@ -255,7 +285,7 @@ class RideService {
     }
   }
 
-  // Method to get pickup and destination addresses from coordinates
+  // Method to get addresses from coordinates using geocoding
   Future<Map<String, String>> getAddressesFromCoordinates(
       double pickupLat,
       double pickupLng,
@@ -263,11 +293,41 @@ class RideService {
       double destLng
       ) async {
     try {
-      // You can use a geocoding service here
-      // For now, return formatted coordinates
+      // Get pickup address
+      String pickupAddress = 'Unknown pickup location';
+      try {
+        List<Placemark> pickupPlacemarks = await placemarkFromCoordinates(
+            pickupLat,
+            pickupLng
+        ).timeout(Duration(seconds: 5));
+
+        if (pickupPlacemarks.isNotEmpty) {
+          final place = pickupPlacemarks.first;
+          pickupAddress = '${place.street ?? ''}, ${place.locality ?? ''}, ${place.country ?? ''}'.trim();
+        }
+      } catch (e) {
+        print('Pickup geocoding error: $e');
+      }
+
+      // Get destination address
+      String destAddress = 'Unknown destination';
+      try {
+        List<Placemark> destPlacemarks = await placemarkFromCoordinates(
+            destLat,
+            destLng
+        ).timeout(Duration(seconds: 5));
+
+        if (destPlacemarks.isNotEmpty) {
+          final place = destPlacemarks.first;
+          destAddress = '${place.street ?? ''}, ${place.locality ?? ''}, ${place.country ?? ''}'.trim();
+        }
+      } catch (e) {
+        print('Destination geocoding error: $e');
+      }
+
       return {
-        'pickup': 'Pickup: ${pickupLat.toStringAsFixed(4)}, ${pickupLng.toStringAsFixed(4)}',
-        'destination': 'Destination: ${destLat.toStringAsFixed(4)}, ${destLng.toStringAsFixed(4)}',
+        'pickup': pickupAddress,
+        'destination': destAddress,
       };
     } catch (e) {
       print('Address lookup error: $e');

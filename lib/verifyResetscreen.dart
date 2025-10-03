@@ -17,11 +17,9 @@ class _VerifyResetCodeScreenState extends State<VerifyResetCodeScreen> {
   final _formKey = GlobalKey<FormState>();
   final _codeController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
   final _resetService = TokenBasedPasswordResetService();
   bool _isLoading = false;
   bool _obscurePassword = true;
-  bool _obscureConfirmPassword = true;
 
   Future<void> _resetPassword() async {
     if (!_formKey.currentState!.validate()) return;
@@ -37,17 +35,19 @@ class _VerifyResetCodeScreenState extends State<VerifyResetCodeScreen> {
     setState(() => _isLoading = false);
 
     if (result['success'] == true) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['message']),
+        const SnackBar(
+          content: Text('Password reset successful! Please log in.'),
           backgroundColor: Colors.green,
         ),
       );
-      Navigator.popUntil(context, (route) => route.settings.name == AppRoutes.login);
+      Navigator.of(context).popUntil((route) => route.isFirst);
     } else {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(result['message']),
+          content: Text(result['message'] ?? result['error'] ?? 'Failed to reset password'),
           backgroundColor: Colors.red,
         ),
       );
@@ -81,20 +81,19 @@ class _VerifyResetCodeScreenState extends State<VerifyResetCodeScreen> {
                   controller: _codeController,
                   decoration: InputDecoration(
                     labelText: 'Reset Code',
-                    prefixIcon: const Icon(Icons.lock_outlined),
+                    prefixIcon: const Icon(Icons.verified_user_outlined),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                   keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   maxLength: 6,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please enter the reset code';
                     }
                     if (value.length != 6) {
-                      return 'Please enter a valid 6-digit code';
+                      return 'Code must be 6 digits';
                     }
                     return null;
                   },
@@ -104,13 +103,15 @@ class _VerifyResetCodeScreenState extends State<VerifyResetCodeScreen> {
                   controller: _passwordController,
                   decoration: InputDecoration(
                     labelText: 'New Password',
-                    prefixIcon: const Icon(Icons.lock_outlined),
+                    prefixIcon: const Icon(Icons.lock_outline),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                        _obscurePassword
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
                       ),
                       onPressed: () {
                         setState(() {
@@ -130,37 +131,6 @@ class _VerifyResetCodeScreenState extends State<VerifyResetCodeScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _confirmPasswordController,
-                  decoration: InputDecoration(
-                    labelText: 'Confirm New Password',
-                    prefixIcon: const Icon(Icons.lock_outlined),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscureConfirmPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _obscureConfirmPassword = !_obscureConfirmPassword;
-                        });
-                      },
-                    ),
-                  ),
-                  obscureText: _obscureConfirmPassword,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please confirm your new password';
-                    }
-                    if (value != _passwordController.text) {
-                      return 'Passwords do not match';
-                    }
-                    return null;
-                  },
-                ),
                 const SizedBox(height: 32),
                 ElevatedButton(
                   onPressed: _isLoading ? null : _resetPassword,
@@ -172,22 +142,17 @@ class _VerifyResetCodeScreenState extends State<VerifyResetCodeScreen> {
                   ),
                   child: _isLoading
                       ? const SizedBox(
-                    height: 24,
-                    width: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation(Colors.white),
-                    ),
-                  )
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation(Colors.white),
+                          ),
+                        )
                       : const Text(
-                    'Reset Password',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Back to Forgot Password'),
+                          'Reset Password',
+                          style: TextStyle(fontSize: 16),
+                        ),
                 ),
               ],
             ),
@@ -201,7 +166,6 @@ class _VerifyResetCodeScreenState extends State<VerifyResetCodeScreen> {
   void dispose() {
     _codeController.dispose();
     _passwordController.dispose();
-    _confirmPasswordController.dispose();
     super.dispose();
   }
 }

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:geocoding/geocoding.dart';  // Add this import
+import 'package:geocoding/geocoding.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class LocationUpdater with WidgetsBindingObserver {
@@ -12,6 +12,16 @@ class LocationUpdater with WidgetsBindingObserver {
   Timer? _timer;
   bool _isRunning = false;
   StreamSubscription<AuthState>? _authSubscription;
+
+  // Cache to avoid redundant geocoding
+  Position? _lastPosition;
+  String? _lastAddress;
+  DateTime? _lastGeocodingTime;
+
+  // Constants for efficiency
+  static const int UPDATE_INTERVAL_SECONDS = 10;
+  static const int GEOCODING_THROTTLE_SECONDS = 30; // Only geocode every 30s
+  static const double MIN_DISTANCE_FOR_GEOCODING = 50.0; // meters
 
   void initialize() {
     WidgetsBinding.instance.addObserver(this);
@@ -89,12 +99,12 @@ class LocationUpdater with WidgetsBindingObserver {
     // Update immediately when starting
     _updateLocation();
 
-    // Then update every minute
-    _timer = Timer.periodic(Duration(minutes: 1), (timer) async {
+    // Update every 10 seconds for efficient real-time tracking
+    _timer = Timer.periodic(Duration(seconds: UPDATE_INTERVAL_SECONDS), (timer) async {
       await _updateLocation();
     });
 
-    print("Started location updates.");
+    print("Started location updates (every $UPDATE_INTERVAL_SECONDS seconds).");
   }
 
   Future<void> _updateLocation() async {
@@ -105,73 +115,116 @@ class LocationUpdater with WidgetsBindingObserver {
         return;
       }
 
+      // Get position with shorter timeout for faster updates
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
-        timeLimit: Duration(seconds: 30),
+        timeLimit: Duration(seconds: 8), // Shorter timeout for 10s interval
       );
 
-      // Perform reverse geocoding to get address
-      String? address;
-      try {
-        List<Placemark> placemarks = await placemarkFromCoordinates(
-            position.latitude,
-            position.longitude
-        );
+      // Determine if we should perform geocoding
+      String? address = _lastAddress; // Use cached address by default
+      bool shouldGeocode = _shouldPerformGeocoding(position);
 
-        if (placemarks.isNotEmpty) {
-          Placemark place = placemarks[0];
-          // Build address string from available components
-          List<String> addressParts = [];
-
-          if (place.street != null && place.street!.isNotEmpty) {
-            addressParts.add(place.street!);
-          }
-          if (place.locality != null && place.locality!.isNotEmpty) {
-            addressParts.add(place.locality!);
-          }
-          if (place.administrativeArea != null && place.administrativeArea!.isNotEmpty) {
-            addressParts.add(place.administrativeArea!);
-          }
-          if (place.country != null && place.country!.isNotEmpty) {
-            addressParts.add(place.country!);
-          }
-
-          address = addressParts.join(', ');
-        }
-      } catch (geocodingError) {
-        print("Geocoding failed: $geocodingError");
-        // Continue without address if geocoding fails
+      if (shouldGeocode) {
+        address = await _performGeocoding(position);
+        _lastAddress = address;
+        _lastGeocodingTime = DateTime.now();
       }
 
-      // Use upsert to handle duplicates automatically
+      _lastPosition = position;
+
+      // Update database with upsert for efficiency
       await Supabase.instance.client.from('user_locations').upsert({
         'user_id': user.id,
         'latitude': position.latitude,
         'longitude': position.longitude,
-        'address': address, // This was missing!
+        'address': address,
         'last_updated': DateTime.now().toUtc().toIso8601String(),
-      });
+      }, onConflict: 'user_id'); // Specify conflict column for better performance
 
-      print("Location updated for user ${user.id} at ${DateTime.now()}");
-      if (address != null) {
-        print("Address: $address");
-      }
+      print("Location updated: ${position.latitude}, ${position.longitude}");
 
     } catch (e) {
       print("Error updating location: $e");
 
       // If it's a timeout or location error, don't stop the service
-      // It will try again in the next cycle
-      if (e.toString().contains('timeout') || e.toString().contains('location')) {
+      if (e.toString().contains('timeout') ||
+          e.toString().contains('location') ||
+          e.toString().contains('service')) {
         print("Location update failed, will retry in next cycle");
       }
     }
+  }
+
+  // Intelligently decide when to perform expensive geocoding
+  bool _shouldPerformGeocoding(Position newPosition) {
+    // Always geocode on first update
+    if (_lastPosition == null || _lastGeocodingTime == null) {
+      return true;
+    }
+
+    // Check time since last geocoding
+    final timeSinceLastGeocoding = DateTime.now().difference(_lastGeocodingTime!);
+    if (timeSinceLastGeocoding.inSeconds < GEOCODING_THROTTLE_SECONDS) {
+      return false;
+    }
+
+    // Check distance moved
+    final distance = Geolocator.distanceBetween(
+      _lastPosition!.latitude,
+      _lastPosition!.longitude,
+      newPosition.latitude,
+      newPosition.longitude,
+    );
+
+    // Only geocode if moved significant distance
+    return distance >= MIN_DISTANCE_FOR_GEOCODING;
+  }
+
+  // Perform geocoding with error handling
+  Future<String?> _performGeocoding(Position position) async {
+    try {
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      ).timeout(Duration(seconds: 5)); // Timeout for geocoding
+
+      if (placemarks.isNotEmpty) {
+        Placemark place = placemarks[0];
+        List<String> addressParts = [];
+
+        if (place.street != null && place.street!.isNotEmpty) {
+          addressParts.add(place.street!);
+        }
+        if (place.locality != null && place.locality!.isNotEmpty) {
+          addressParts.add(place.locality!);
+        }
+        if (place.administrativeArea != null && place.administrativeArea!.isNotEmpty) {
+          addressParts.add(place.administrativeArea!);
+        }
+        if (place.country != null && place.country!.isNotEmpty) {
+          addressParts.add(place.country!);
+        }
+
+        return addressParts.join(', ');
+      }
+    } catch (e) {
+      print("Geocoding failed: $e");
+    }
+
+    return null;
   }
 
   void stopUpdating() {
     _timer?.cancel();
     _timer = null;
     _isRunning = false;
+
+    // Clear cache
+    _lastPosition = null;
+    _lastAddress = null;
+    _lastGeocodingTime = null;
+
     print("Stopped location updates.");
   }
 
@@ -192,19 +245,20 @@ class LocationUpdater with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     switch (state) {
       case AppLifecycleState.resumed:
+        print("App resumed - ensuring location updates");
         startIfNeeded();
         break;
       case AppLifecycleState.paused:
-      case AppLifecycleState.detached:
-      case AppLifecycleState.inactive:
-      // Don't stop on paused/inactive - keep running in background
-      // Only stop on detached (app completely closed)
-        if (state == AppLifecycleState.detached) {
-          stopUpdating();
-        }
+        print("App paused - location updates continue in background");
+        // Continue running in background
         break;
+      case AppLifecycleState.detached:
+        print("App detached - stopping location updates");
+        stopUpdating();
+        break;
+      case AppLifecycleState.inactive:
       case AppLifecycleState.hidden:
-      // Handle the new hidden state for modern Flutter versions
+      // No action needed
         break;
     }
   }

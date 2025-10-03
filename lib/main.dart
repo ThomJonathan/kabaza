@@ -168,13 +168,6 @@ class _MyAppState extends State<MyApp> {
           );
         }
 
-        // Handle driver active ride route with arguments
-        if (settings.name == AppRoutes.verifyResetCode) {
-          final args = settings.arguments as Map<String, dynamic>;
-          return MaterialPageRoute(
-            builder: (context) => VerifyResetCodeScreen(email: args['email']),
-          );
-        }
         // Handle chat page route with arguments
         if (settings.name == '/chat') {
           final args = settings.arguments as Map<String, dynamic>;
@@ -183,14 +176,6 @@ class _MyAppState extends State<MyApp> {
               otherUserId: args['otherUserId'],
               otherUserName: args['otherUserName'] as String?,
             ),
-          );
-        }
-
-        // Handle verify reset code route with arguments
-        if (settings.name == AppRoutes.verifyResetCode) {
-          final args = settings.arguments as Map<String, dynamic>;
-          return MaterialPageRoute(
-            builder: (context) => VerifyResetCodeScreen(email: args['email']),
           );
         }
 

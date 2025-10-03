@@ -27,11 +27,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     setState(() => _isLoading = false);
 
     if (result['success'] == true) {
-      Navigator.pushNamed(
-        context,
-        AppRoutes.verifyResetCode,
-        arguments: {'email': _emailController.text.trim()},
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message']),
+          backgroundColor: Colors.green,
+        ),
       );
+      Navigator.pop(context); // Go back to login
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

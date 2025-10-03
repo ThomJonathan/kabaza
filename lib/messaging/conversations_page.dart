@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'messaging_service.dart';
 import 'chat_page.dart';
+import 'package:kabanza/Rider/BottomNavBar.dart';
+import 'package:kabanza/Driver/BottomNavBar.dart';
 
 class ConversationsPage extends StatefulWidget {
   const ConversationsPage({super.key});
@@ -229,6 +231,56 @@ class _ConversationsPageState extends State<ConversationsPage> {
     }
   }
 
+  String get _userRole {
+    final user = _client.auth.currentUser;
+    final role = user?.userMetadata?['role'] as String?;
+    return role?.toLowerCase() ?? 'rider';
+  }
+
+  Widget? _buildBottomNavBar() {
+    if (_userRole == 'driver') {
+      return DriverBottomNavigation(
+        currentIndex: 2,
+        onTap: (index) {
+          switch (index) {
+            case 0:
+              Navigator.pushReplacementNamed(context, '/driver-home');
+              break;
+            case 1:
+              Navigator.pushReplacementNamed(context, '/driver-trips');
+              break;
+            case 2:
+              // Already on messages
+              break;
+            case 3:
+              Navigator.pushReplacementNamed(context, '/profile');
+              break;
+          }
+        },
+      );
+    } else {
+      return RiderBottomNavigation(
+        currentIndex: 2,
+        onTap: (index) {
+          switch (index) {
+            case 0:
+              Navigator.pushReplacementNamed(context, '/rider-home');
+              break;
+            case 1:
+              Navigator.pushReplacementNamed(context, '/ride-history');
+              break;
+            case 2:
+              // Already on messages
+              break;
+            case 3:
+              Navigator.pushReplacementNamed(context, '/profile');
+              break;
+          }
+        },
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -417,6 +469,7 @@ class _ConversationsPageState extends State<ConversationsPage> {
           },
         ),
       )),
+      bottomNavigationBar: _buildBottomNavBar(),
     );
   }
 }

@@ -1,11 +1,14 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:kabanza/config/supabaseConfig.dart';
 
 class TokenBasedPasswordResetService {
   final SupabaseClient _supabase = Supabase.instance.client;
+  static const String _edgeFunctionUrl =
+      'https://xagaehyzcnobvvmaykvt.supabase.co/functions/v1/password-reset';
 
-  // Send reset link via Supabase built-in method
+  // Send 6-digit code via custom Edge Function
   Future<Map<String, dynamic>> sendResetToken(String email) async {
     try {
       // Validate email format
@@ -13,65 +16,89 @@ class TokenBasedPasswordResetService {
         return {'success': false, 'message': 'Please enter a valid email address'};
       }
 
-      // Check if user exists in your users table
-      final userResponse = await _supabase
-          .from('users')
-          .select('id, email, is_active')
-          .eq('email', email.toLowerCase().trim())
-          .maybeSingle();
+      // Call Edge Function to send 6-digit code
+      final url = Uri.parse(_edgeFunctionUrl);
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SupabaseConfig.supabaseAnonKey,
+          'Authorization': 'Bearer ${SupabaseConfig.supabaseAnonKey}', // Add this line
+        },
+        body: jsonEncode({
+          'action': 'send-code',
+          'email': email.toLowerCase().trim(),
+        }),
+      ).timeout(const Duration(seconds: 30));
 
-      if (userResponse == null) {
-        return {'success': false, 'message': 'No account found with this email address'};
+      print('Reset code response: ${response.statusCode} ${response.body}'); // Debug
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return {
+          'success': true,
+          'message': 'A 6-digit code has been sent to your email!',
+        };
+      } else {
+        // Improved error reporting
+        String errorMsg = data['error'] ?? data['message'] ?? 'Failed to send reset code';
+        return {
+          'success': false,
+          'message': errorMsg,
+        };
       }
-
-      // Send reset email using Supabase built-in method
-      await _supabase.auth.resetPasswordForEmail(
-        email,
-        redirectTo: 'yourapp://reset-password', // Set this to your app's deep link or web URL
-      );
-
-      return {
-        'success': true,
-        'message': 'Reset instructions sent to your email! Please check your inbox.',
-      };
     } catch (error) {
       print('Error in sendResetToken: $error');
-      return {'success': false, 'message': 'Failed to send reset email. Please try again later.'};
+      return {
+        'success': false,
+        'message': 'Failed to send reset code. Please try again later.',
+      };
     }
   }
 
-  // Add this method for code-based password reset
+  // Reset password with 6-digit code
   Future<Map<String, dynamic>> resetPasswordWithToken({
     required String email,
     required String token,
     required String newPassword,
   }) async {
     try {
-      // Call your edge function endpoint
-      final url = Uri.parse(
-        // Replace with your deployed edge function URL
-        'https://<your-project-ref>.functions.supabase.co/password-reset'
-      );
+      final url = Uri.parse(_edgeFunctionUrl);
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SupabaseConfig.supabaseAnonKey,
+          'Authorization': 'Bearer ${SupabaseConfig.supabaseAnonKey}', // Add this line
+        },
         body: jsonEncode({
           'action': 'update-password',
-          'email': email,
+          'email': email.toLowerCase().trim(),
           'token': token,
           'newPassword': newPassword,
         }),
-      );
+      ).timeout(const Duration(seconds: 30));
 
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200 && data['success'] == true) {
-        return {'success': true, 'message': data['message'] ?? 'Password reset successful'};
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Password reset successful'
+        };
       } else {
-        return {'success': false, 'message': data['error'] ?? 'Failed to reset password'};
+        return {
+          'success': false,
+          'message': data['error'] ?? 'Failed to reset password'
+        };
       }
     } catch (e) {
-      return {'success': false, 'message': 'Failed to reset password. Please try again.'};
+      print('Error in resetPasswordWithToken: $e');
+      return {
+        'success': false,
+        'message': 'Failed to reset password. Please try again.'
+      };
     }
   }
 }

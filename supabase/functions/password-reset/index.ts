@@ -1,283 +1,194 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+// supabase/functions/password-reset/index.ts
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-
-// Initialize Supabase client with service role key
-const supabaseUrl = Deno.env.get('SUPABASE_URL');
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-
-if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('Missing Supabase environment variables');
-}
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-// Brevo configuration
-const brevoApiKey = Deno.env.get('BREVO_API_KEY');
-const fromEmail = Deno.env.get('FROM_EMAIL') || 'no-reply@jaytech.com';
-const fromName = Deno.env.get('FROM_NAME') || 'QUICKlift';
-
-// Send email using Brevo API
-async function sendResetEmail(email: string, token: string) {
-  console.log('Attempting to send email to:', email);
-
-  // Debug: Check if environment variables are loaded
-  console.log('Environment check:', {
-    brevoApiKey: brevoApiKey ? 'Present' : 'Missing',
-    fromEmail: fromEmail,
-    fromName: fromName
-  });
-
-  if (!brevoApiKey) {
-    console.error('BREVO_API_KEY not configured');
-    throw new Error('BREVO_API_KEY not configured');
-  }
-
-  // Validate email format
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-    throw new Error('Invalid email format');
-  }
-
-  // Validate sender email format
-  if (!emailRegex.test(fromEmail)) {
-    throw new Error('Invalid sender email format');
-  }
-
-  const emailPayload = {
-    sender: {
-      email: fromEmail,
-      name: fromName
-    },
-    to: [{ email: email }],
-    subject: 'Password Reset Code - QUICKlift',
-    htmlContent: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #333; text-align: center;">Password Reset Request</h2>
-        <p>Hello,</p>
-        <p>You requested to reset your password for your QUICKlift account.</p>
-        <div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0;">
-          <h3 style="margin: 0; color: #333;">Your Reset Code:</h3>
-          <p style="font-size: 32px; font-weight: bold; color: #007bff; margin: 10px 0; letter-spacing: 2px;">${token}</p>
-        </div>
-        <p><strong>This code will expire in 15 minutes.</strong></p>
-        <p>If you didn't request this reset, please ignore this email and your password will remain unchanged.</p>
-        <hr style="margin: 30px 0;">
-        <p style="color: #666; font-size: 12px;">
-          This is an automated message from QUICKlift. Please do not reply to this email.
-        </p>
-      </div>
-    `,
-  };
-
-  console.log('Email payload prepared:', {
-    sender: emailPayload.sender,
-    to: emailPayload.to,
-    subject: emailPayload.subject
-  });
-
-  try {
-    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
-      headers: {
-        'api-key': brevoApiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(emailPayload),
-    });
-
-    console.log('Brevo API response status:', response.status);
-    console.log('Brevo API response headers:', Object.fromEntries(response.headers));
-
-    const responseText = await response.text();
-    console.log('Brevo API raw response:', responseText);
-
-    if (!response.ok) {
-      console.error('Brevo API error details:', {
-        status: response.status,
-        statusText: response.statusText,
-        body: responseText
-      });
-      throw new Error(`Brevo API error: ${response.status} - ${responseText}`);
-    }
-
-    let result;
-    try {
-      result = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('Failed to parse Brevo response as JSON:', parseError);
-      throw new Error('Invalid JSON response from Brevo API');
-    }
-
-    console.log('Email sent successfully:', result);
-    return result;
-
-  } catch (error) {
-    console.error('Detailed error in sendResetEmail:', {
-      name: error.name,
-      message: error.message,
-      stack: error.stack
-    });
-    throw error;
-  }
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    // Parse the request body
-    let body;
-    try {
-      body = await req.json();
-    } catch (parseError) {
-      console.error('JSON parse error:', parseError);
-      return new Response(
-        JSON.stringify({ success: false, error: 'Invalid JSON in request body' }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
-    const { action, email, token, newPassword } = body;
-    console.log('Received request:', { action, email, token: token ? '***' : 'missing' });
-
-    // Route: Send reset token
-    if (action === 'send-reset-token') {
-      if (!email || !token) {
-        console.error('Missing email or token');
-        return new Response(
-          JSON.stringify({ success: false, error: 'Email and token are required' }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          }
-        );
+    const supabaseClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
       }
+    });
 
-      try {
-        // Send email
-        const emailResult = await sendResetEmail(email, token);
-        console.log('Email sent successfully to:', email);
+    const { action, email, token, newPassword } = await req.json()
 
-        return new Response(
-          JSON.stringify({
-            success: true,
-            message: 'Reset code sent to your email!',
-            emailId: emailResult.messageId
-          }),
-          {
-            status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          }
-        );
+    // ==================== SEND CODE ACTION ====================
+    if (action === 'send-code') {
+      const { data: { users }, error: userError } = await supabaseClient.auth.admin.listUsers()
 
-      } catch (emailError) {
-        console.error('Email sending error details:', {
-          name: emailError.name,
-          message: emailError.message,
-          stack: emailError.stack
-        });
-
-        // Return more specific error message
-        let errorMessage = 'Failed to send reset email. Please try again.';
-        if (emailError.message.includes('BREVO_API_KEY not configured')) {
-          errorMessage = 'Email service not configured properly';
-        } else if (emailError.message.includes('Invalid email format')) {
-          errorMessage = 'Invalid email address';
-        } else if (emailError.message.includes('Brevo API error')) {
-          errorMessage = 'Email service temporarily unavailable';
-        }
-
+      if (userError) {
+        console.error('Error listing users:', userError)
         return new Response(
           JSON.stringify({
             success: false,
-            error: errorMessage,
-            details: emailError.message // Include for debugging
+            error: 'Error checking user existence'
           }),
           {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           }
-        );
-      }
-    }
-
-    // Route: Update user password
-    else if (action === 'update-password') {
-      if (!email || !newPassword) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Email and new password are required' }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          }
-        );
+        )
       }
 
-      // Validate password strength
-      if (newPassword.length < 8) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Password must be at least 8 characters long' }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          }
-        );
-      }
-
-      // Get user by email using admin API
-      const { data: users, error: listError } = await supabase.auth.admin.listUsers();
-
-      if (listError) {
-        console.error('Error listing users:', listError);
-        return new Response(
-          JSON.stringify({ success: false, error: 'Failed to find user' }),
-          {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          }
-        );
-      }
-
-      const user = users.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
+      const user = users.find(u => u.email?.toLowerCase() === email.toLowerCase())
 
       if (!user) {
         return new Response(
-          JSON.stringify({ success: false, error: 'User not found' }),
+          JSON.stringify({
+            success: false,
+            error: 'No account found with this email address.'
+          }),
           {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 404,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           }
-        );
+        )
       }
 
-      // Update user password using admin API
-      const { error: updateError } = await supabase.auth.admin.updateUserById(
+      const resetCode = Math.floor(100000 + Math.random() * 900000).toString()
+      const expiresAt = new Date()
+      expiresAt.setMinutes(expiresAt.getMinutes() + 10)
+
+      const { error: insertError } = await supabaseClient
+        .from('password_reset_codes')
+        .insert({
+          email: email.toLowerCase(),
+          code: resetCode,
+          expires_at: expiresAt.toISOString(),
+          used: false
+        })
+
+      if (insertError) {
+        console.error('Insert error:', insertError)
+        throw new Error(`Failed to store reset code: ${insertError.message}`)
+      }
+
+      const emailResult = await sendResetEmail(email, resetCode)
+
+      if (!emailResult.emailSent) {
+        console.error('Email send error:', emailResult.emailError)
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `Failed to send email. ${emailResult.emailError}`
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500,
+          }
+        )
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'Reset code sent successfully'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        }
+      )
+    }
+
+    // ==================== UPDATE PASSWORD ACTION ====================
+    if (action === 'update-password') {
+      const { data: codeData, error: codeError } = await supabaseClient
+        .from('password_reset_codes')
+        .select('*')
+        .eq('email', email.toLowerCase())
+        .eq('code', token)
+        .eq('used', false)
+        .single()
+
+      if (codeError || !codeData) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'Invalid or expired reset code'
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 400,
+          }
+        )
+      }
+
+      const now = new Date()
+      const expiresAt = new Date(codeData.expires_at)
+
+      if (now > expiresAt) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'Reset code has expired. Please request a new one.'
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 400,
+          }
+        )
+      }
+
+      const { data: { users }, error: userError } = await supabaseClient.auth.admin.listUsers()
+
+      if (userError) {
+        console.error('Error listing users:', userError)
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'Error finding user'
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500,
+          }
+        )
+      }
+
+      const user = users.find(u => u.email?.toLowerCase() === email.toLowerCase())
+
+      if (!user) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'User not found'
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 404,
+          }
+        )
+      }
+
+      const { error: updateError } = await supabaseClient.auth.admin.updateUserById(
         user.id,
         { password: newPassword }
-      );
+      )
 
       if (updateError) {
-        console.error('Error updating password:', updateError);
-        return new Response(
-          JSON.stringify({ success: false, error: 'Failed to update password' }),
-          {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          }
-        );
+        console.error('Update password error:', updateError)
+        throw new Error(`Failed to update password: ${updateError.message}`)
       }
+
+      await supabaseClient
+        .from('password_reset_codes')
+        .update({ used: true })
+        .eq('id', codeData.id)
 
       return new Response(
         JSON.stringify({
@@ -285,39 +196,90 @@ serve(async (req) => {
           message: 'Password updated successfully'
         }),
         {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
-      );
+      )
     }
 
-    // Invalid action
-    else {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Invalid action. Use "send-reset-token" or "update-password"' }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
-
-  } catch (error) {
-    console.error('Unexpected error in function:', {
-      name: error.name,
-      message: error.message,
-      stack: error.stack
-    });
     return new Response(
       JSON.stringify({
         success: false,
-        error: 'Internal server error',
-        details: error.message
+        error: 'Invalid action'
       }),
       {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
       }
-    );
+    )
+
+  } catch (error) {
+    console.error('Error:', error)
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error.message || 'An unexpected error occurred'
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      }
+    )
   }
-});
+})
+
+// ==================== EMAIL SENDING WITH RESEND ====================
+async function sendResetEmail(email: string, code: string): Promise<{ emailSent: boolean, emailError?: string }> {
+  try {
+    const resendApiKey = Deno.env.get('RESEND_API_KEY')
+
+    if (!resendApiKey) {
+      throw new Error('RESEND_API_KEY not configured')
+    }
+
+    console.log('Sending email via Resend to:', email)
+
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${resendApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'QuickLift <onboarding@resend.dev>', // Use onboarding domain for testing
+        to: email,
+        subject: 'Reset Your Password - QuickLift',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #333;">Reset Your Password</h2>
+            <p style="color: #666; font-size: 16px;">You requested to reset your password. Use the code below:</p>
+            <div style="background-color: #f4f4f4; padding: 20px; text-align: center; margin: 30px 0; border-radius: 8px;">
+              <div style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #333;">
+                ${code}
+              </div>
+            </div>
+            <p style="color: #666; font-size: 14px;">This code will expire in 10 minutes.</p>
+            <p style="color: #999; font-size: 12px; margin-top: 30px;">If you didn't request this, please ignore this email.</p>
+          </div>
+        `,
+      }),
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      console.error('Resend API error:', data)
+      throw new Error(data.message || 'Failed to send email via Resend')
+    }
+
+    console.log('Email sent successfully via Resend:', data.id)
+    return { emailSent: true }
+
+  } catch (error) {
+    console.error('Error sending email:', error)
+    return {
+      emailSent: false,
+      emailError: error?.message || String(error)
+    }
+  }
+}

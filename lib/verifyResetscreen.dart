@@ -1,8 +1,6 @@
-// lib/screens/verify_reset_code_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kabanza/ForgotPassword.dart';
-import 'package:kabanza/routes.dart';
 
 class VerifyResetCodeScreen extends StatefulWidget {
   final String email;

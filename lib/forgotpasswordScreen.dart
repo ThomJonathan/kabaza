@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kabanza/ForgotPassword.dart';
+import 'verifyResetscreen.dart';
 import 'package:kabanza/routes.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
@@ -34,7 +35,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           backgroundColor: Colors.green,
         ),
       );
-      Navigator.pop(context); // Go back to login
+
+      // Navigate to verify screen with email - CHANGED THIS PART
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => VerifyResetCodeScreen(
+            email: _emailController.text.trim(),
+          ),
+        ),
+      );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

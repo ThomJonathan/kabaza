@@ -4,6 +4,7 @@ import 'package:kabanza/AuthManager.dart';
 import 'package:intl/intl.dart';
 import 'package:kabanza/PayChangu/paymentHelper.dart';
 import 'dart:io';
+import 'package:kabanza/Rider/BottomNavBar.dart';
 
 class RiderHistoryPage extends StatefulWidget {
   const RiderHistoryPage({Key? key}) : super(key: key);
@@ -16,6 +17,8 @@ class _RiderHistoryPageState extends State<RiderHistoryPage> {
   final supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _rides = [];
   bool _isLoading = true;
+
+  int _currentIndex = 1;
 
   @override
   void initState() {
@@ -60,6 +63,24 @@ class _RiderHistoryPageState extends State<RiderHistoryPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(msg)),
       );
+    }
+  }
+
+  void _onNavTap(int index) {
+    if (index == _currentIndex) return;
+    switch (index) {
+      case 0:
+        Navigator.pushReplacementNamed(context, '/rider-home');
+        break;
+      case 1:
+        // Already on history
+        break;
+      case 2:
+        Navigator.pushReplacementNamed(context, '/messages');
+        break;
+      case 3:
+        Navigator.pushReplacementNamed(context, '/profile');
+        break;
     }
   }
 
@@ -254,25 +275,35 @@ class _RiderHistoryPageState extends State<RiderHistoryPage> {
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _rides.isEmpty
-              ? const Center(
-                  child: Text(
-                    'No trips found.',
-                    style: TextStyle(color: Colors.grey, fontSize: 16),
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadRideHistory,
-                  child: ListView.builder(
-                    itemCount: _rides.length,
-                    itemBuilder: (context, index) {
-                      final ride = _rides[index];
-                      return _buildRideCard(ride);
-                    },
-                  ),
-                ),
+      body: Column(
+        children: [
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _rides.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No trips found.',
+                          style: TextStyle(color: Colors.grey, fontSize: 16),
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: _loadRideHistory,
+                        child: ListView.builder(
+                          itemCount: _rides.length,
+                          itemBuilder: (context, index) {
+                            final ride = _rides[index];
+                            return _buildRideCard(ride);
+                          },
+                        ),
+                      ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: RiderBottomNavigation(
+        currentIndex: _currentIndex,
+        onTap: _onNavTap,
+      ),
     );
   }
 }

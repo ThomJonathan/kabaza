@@ -240,17 +240,17 @@ class _ConversationsPageState extends State<ConversationsPage> {
   Widget? _buildBottomNavBar() {
     if (_userRole == 'driver') {
       return DriverBottomNavigation(
-        currentIndex: 2,
+        currentIndex: 1, // Messages tab is index 1
         onTap: (index) {
           switch (index) {
             case 0:
               Navigator.pushReplacementNamed(context, '/driver-home');
               break;
             case 1:
-              Navigator.pushReplacementNamed(context, '/driver-trips');
+              // Already on messages
               break;
             case 2:
-              // Already on messages
+              Navigator.pushReplacementNamed(context, '/driver-trips');
               break;
             case 3:
               Navigator.pushReplacementNamed(context, '/profile');
@@ -260,17 +260,17 @@ class _ConversationsPageState extends State<ConversationsPage> {
       );
     } else {
       return RiderBottomNavigation(
-        currentIndex: 2,
+        currentIndex: 1, // Messages tab is index 1
         onTap: (index) {
           switch (index) {
             case 0:
               Navigator.pushReplacementNamed(context, '/rider-home');
               break;
             case 1:
-              Navigator.pushReplacementNamed(context, '/ride-history');
+              // Already on messages
               break;
             case 2:
-              // Already on messages
+              Navigator.pushReplacementNamed(context, '/ride-history');
               break;
             case 3:
               Navigator.pushReplacementNamed(context, '/profile');
@@ -473,4 +473,3 @@ class _ConversationsPageState extends State<ConversationsPage> {
     );
   }
 }
-

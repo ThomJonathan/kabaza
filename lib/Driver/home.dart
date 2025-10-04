@@ -240,7 +240,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
         Navigator.pushNamed(context, '/vehicle-info');
         break;
       case 'settings':
-        Navigator.pushNamed(context, '/settings');
+        Navigator.pushNamed(context, AppRoutes.settings);
         break;
       case 'logout':
         _signOut();
@@ -250,14 +250,20 @@ class _DriverHomePageState extends State<DriverHomePage> {
 
   void _handleBottomNavTap(int index) {
     switch (index) {
+      case 0:
+        // Home tab
+        // Already on home, do nothing or maybe refresh
+        break;
       case 1:
         // Messages tab
         Navigator.pushNamed(context, AppRoutes.messages);
         break;
       case 2:
+        // Trips tab
         _viewTrips();
         break;
       case 3:
+        // Profile tab
         _viewProfile();
         break;
     }

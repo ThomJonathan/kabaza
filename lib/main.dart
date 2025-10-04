@@ -23,6 +23,7 @@ import 'package:kabanza/messaging/chat_page.dart';
 import 'package:kabanza/Driver/hotspot.dart';
 import 'package:kabanza/ProfileScreen.dart'; // <-- Add this import
 import 'package:kabanza/Rider/riderHistory.dart'; // <-- Add this import
+import 'package:kabanza/settings.dart';
 
 import 'package:kabanza/verifyResetscreen.dart';
 import'forgotpasswordScreen.dart';
@@ -147,6 +148,7 @@ class _MyAppState extends State<MyApp> {
         AppRoutes.vehicleDetails: (context) => const VehicleDetailsScreen(),
         AppRoutes.messages: (context) => const ConversationsPage(),
         AppRoutes.profile: (context) => const ProfileScreen(),
+        AppRoutes.settings: (context) => const SettingsPage(),
         // Driver routes
         AppRoutes.driverTrips: (context) => const DriverTripsPage(),
         AppRoutes.driverRideRequests: (context) => const DriverRideRequestsPage(),

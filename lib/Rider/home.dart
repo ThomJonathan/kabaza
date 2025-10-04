@@ -438,7 +438,7 @@ class _RiderHomePageState extends State<RiderHomePage> {
         locationUpdater: _locationUpdater,
         onForceLocationUpdate: _backend.forceLocationUpdate,
         onProfileSelected: _viewProfile,
-        onSettingsSelected: () => Navigator.pushNamed(context, '/settings'),
+        onSettingsSelected: () => Navigator.pushNamed(context, AppRoutes.settings),
         onLogoutSelected: _signOut,
         onRefresh: _loadRideData, // Pass refresh callback
       ),

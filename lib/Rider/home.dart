@@ -461,14 +461,17 @@ class _RiderHomePageState extends State<RiderHomePage> {
         currentIndex: 0,
         onTap: (index) {
           switch (index) {
+            case 0:
+              // Already on home, do nothing
+              break;
             case 1:
-              _viewRideHistory(); // History tab
+              Navigator.pushReplacementNamed(context, '/ride-history');
               break;
             case 2:
-              _viewMessages();
+              Navigator.pushReplacementNamed(context, '/messages');
               break;
             case 3:
-              _viewProfile();
+              Navigator.pushReplacementNamed(context, '/profile');
               break;
           }
         },

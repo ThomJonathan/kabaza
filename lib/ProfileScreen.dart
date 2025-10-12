@@ -79,6 +79,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text('Profile'),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (_role == 'driver') {
+              Navigator.pushReplacementNamed(context, '/driver-home');
+            } else {
+              Navigator.pushReplacementNamed(context, '/rider-home');
+            }
+          },
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(24.0),

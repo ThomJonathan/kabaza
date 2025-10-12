@@ -291,7 +291,7 @@ class _BookRidePageState extends State<BookRidePage> {
         // Navigate to driver home page instead of ride tracking page
         Navigator.pushNamedAndRemoveUntil(
           context,
-          AppRoutes.driverHome,
+          AppRoutes.riderHome,
           (route) => false,
         );
       } else {

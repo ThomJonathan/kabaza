@@ -1,3 +1,4 @@
+
 // main.dart - Simplified version using token-based password reset only
 import 'package:flutter/material.dart';
 import 'package:kabanza/routes.dart';

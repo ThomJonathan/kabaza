@@ -49,8 +49,7 @@ class _SignupScreenState extends State<SignupScreen> {
         return false;
       }
 
-      // Allow multiple users with same phone number and let them create accounts
-      // The system will handle authentication via email anyway
+   
       return true;
     } catch (error) {
       _showErrorSnackBar('Error checking existing user: $error');

@@ -26,12 +26,8 @@ class RideService {
         print('No user ID available');
         return [];
       }
-
-      // First, update the current user's location with address
       await _updateUserLocation(lat, lng);
-
       print('Calling get_nearby_drivers_with_location for user: $currentUserId');
-
       // Execute the nearby drivers query
       final response = await supabase.rpc('get_nearby_drivers_with_location', params: {
         'current_user_id': currentUserId,
@@ -39,12 +35,10 @@ class RideService {
 
       print('Nearby drivers response: $response');
 
-      // Validate response
       if (response == null) {
         print('Null response from database function');
         return [];
       }
-
       final drivers = List<Map<String, dynamic>>.from(response);
       print('Found ${drivers.length} online and available drivers');
 
